@@ -1,0 +1,19 @@
+{
+  "name": "@deepseek-ai/dshm-workspace-claim",
+  "version": "0.0.0",
+  "private": true,
+  "description": "DSHM 端侧的默认工作区登记：**只在注册表为空（全新安装）时**把 ArkTS 认领到的 Download/<包名>/ 注册进 Host 的工作区注册表一次 —— 既给'新建会话'一个落点，也让上游 initializeDefault() 干净短路（本端跑不了它的目录探测）。用户已有工作区时一条都不加，并撤回本插件早先注入的、0 会话的那一条（2026-10-07 收窄，见 docs/113）。",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js"
+  ],
+  "license": "MIT",
+  "_compat_note": "2026-10-16：不声明 peerDependencies —— dsh 的兼容性 preflight 只接受**精确**版本，本插件与核心树同源发布，钉死 0.2.1-alpha.N 会让每次核心树升级都被判 incompatible 而整行禁用。"
+}

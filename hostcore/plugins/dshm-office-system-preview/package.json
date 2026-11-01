@@ -1,0 +1,35 @@
+{
+  "name": "@deepseek-ai/dshm-office-system-preview",
+  "version": "0.0.0",
+  "private": true,
+  "description": "DSHM 端侧插件：侧栏文档预览的「打开方式」按类型分流 —— Office 族交给本机 WPS；html/htm/xhtml/mhtml 交给系统默认浏览器；其余类型弹系统「选择打开方式」框。上游内置 office 预览依赖宿主 LibreOfficeKit，在 openharmony-arm64 上结构性不可达（见插件头注）。",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/client.js"
+  ],
+  "license": "MIT",
+  "dsh": {
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-ui-slots",
+        "@deepseek-ai/dsh-client-ui-primitives",
+        "@deepseek-ai/dsh-client-ui-sidebar-documentpreview"
+      ]
+    }
+  },
+  "_compat_note": "2026-10-16：不声明 peerDependencies —— dsh 的兼容性 preflight 只接受**精确**版本，本插件与核心树同源发布，钉死 0.2.1-alpha.N 会让每次核心树升级都被判 incompatible 而整行禁用。"
+}

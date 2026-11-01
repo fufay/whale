@@ -1,0 +1,223 @@
+/**
+ * dshm-office2pdf 客户端半边：在**文档预览工具栏**（刷新图标旁）加一个「用其他应用打开」按钮。
+ *
+ * ── 挂在哪、为什么 ──────────────────────────────────────────────────────────
+ * 上游 `dsh-client-ui-sidebar-documentpreview` 的正文外壳（TextPreview）在自己的工具栏里
+ * 渲染 `sidebar.right.tab.document.action`（`lib/client.js:959`）：
+ *     renderSlot("sidebar.right.tab.document.action", { content }, { entryKey: selected.id, hookContext: useTabInfo })
+ * ——它是 **keyed 槽**，按"当前预览实现的 id"匹配（office/pdf/excel/code…）。所以本插件为
+ * 每个已知实现 id 各注册一条（同一个组件），**任何文件预览都会出现这个按钮**。
+ * 那条工具栏就是刷新/换行/自动刷新所在的工具栏（用户说的"右上角刷新右侧"）。
+ *
+ * ── 绝不再认领后缀 ─────────────────────────────────────────────────────────
+ * 曾经用自己的 `<object>` 渲染正文 ⇒ 把官方 OfficeBody 顶掉、还换成 ArkWeb PDF 查看器观感。
+ * 现在正文完全交给官方实现（它调 `remote.officeToPdf`，那个服务由本插件宿主半边顶替成
+ * HAP 内置 office2pdf 引擎）。本文件**只加一个按钮**。
+ *
+ * ── 绝对路径怎么来 ─────────────────────────────────────────────────────────
+ * `.action` 的 props 只有 `{ content }` + hooks（`useTabInfo`）。从 `tab.contentId`
+ * （`dsh-resource://file/session/<sid>/<encodedPath>`）解析出 sessionId + 相对路径，
+ * 再经 `remote.workspaceFiles.stat()` 换成 `absolutePath`（与官方正文同一套授权通道）。
+ * 最后交给 ArkTS 桥 `__DSHM_BRIDGES__.openWithSystem(path)`（`WebApp.ets:1492`）。
+ *
+ * @module dshm-office2pdf/client
+ */
+window.__ModuleLoader__.load({
+	id: "@deepseek-ai/dshm-office2pdf",
+	factory: (require) => {
+		var module = { exports: {} };
+		var exports = module.exports;
+		Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
+		let react = require("react");
+		let primitives = require("@deepseek-ai/dsh-client-ui-primitives");
+
+		/** 客户端依赖：槽位 + 文案 + 远程（解析绝对路径）。 */
+		const inject = ['slots', 'locale'];
+		exports.inject = inject;
+
+		/**
+		 * 要挂按钮的预览实现 id（上游 `/lib/client.js` 里各 definition 的常量）。
+		 * keyed 槽按此匹配 ⇒ 每多一个实现就多一行，匹配不上的自然不渲染。
+		 */
+		const TARGET_IDS = [
+			'@deepseek-ai/dsh-client-ui-sidebar-documentpreview/office',
+			'@deepseek-ai/dsh-client-ui-sidebar-documentpreview/pdf',
+			'@deepseek-ai/dsh-client-ui-sidebar-documentpreview/excel',
+			'@deepseek-ai/dsh-client-ui-sidebar-documentpreview/code',
+			'@deepseek-ai/dsh-client-ui-sidebar-documentpreview/image',
+			'@deepseek-ai/dsh-client-ui-sidebar-documentpreview/html',
+			'@deepseek-ai/dsh-client-ui-sidebar-documentpreview/markdown',
+		];
+
+		/** 文案。 */
+		const DICTS = {
+			zh: {
+				openWithSystem: '用其他应用打开',
+				empty: '拿不到文件路径',
+				noBridge: '当前环境不支持系统打开',
+				failed: '打开失败：{message}',
+			},
+			en: {
+				openWithSystem: 'Open with…',
+				empty: 'No file path',
+				noBridge: 'System open unavailable here',
+				failed: 'Open failed: {message}',
+			},
+		};
+
+
+		/** 槽位未注入 t 时的兜底（返回 key 本身，至少不崩）。 */
+		let fallbackT = (key) => key;
+
+		/**
+		 * 解析 `dsh-resource://file/session/<sessionId>/<path>`。
+		 * @param {string} address 标签页的 contentId
+		 * @returns {{sessionId: string, path: string}|null}
+		 */
+		function parseFileAddress(address) {
+			const PREFIX = 'dsh-resource://file/session/';
+			if (typeof address !== 'string' || !address.startsWith(PREFIX)) return null;
+			const rest = address.slice(PREFIX.length);
+			const slash = rest.indexOf('/');
+			if (slash <= 0 || slash === rest.length - 1) return null;
+			const sessionId = rest.slice(0, slash);
+			let path = rest.slice(slash + 1);
+			try {
+				path = decodeURIComponent(path);
+			} catch {
+				// 保持原样（非法的 % 序列）
+			}
+			return { sessionId, path };
+		}
+
+		/**
+		 * 把标签页的 `contentId` 换成绝对路径。
+		 *
+		 * 走宿主端点 `POST /dshm-office2pdf/resolve`（本插件宿主半边注册）：那边有
+		 * `workspaceFiles`，解析 `dsh-resource://file/session/<sid>/<path>` 最可靠。
+		 * 客户端自己调 remote 的写法实测拿不到（2026-10-29），故不在客户端重试。
+		 *
+		 * @param {string} address contentId
+		 * @returns {Promise<string>} 绝对路径；失败返回空串
+		 */
+		async function resolveAbsolutePath(address) {
+			if (typeof address !== 'string' || address.length === 0) return '';
+			// 绝对 scope 的地址可以直接解码（`dsh-resource://file/absolute/<path>`）
+			const ABS = 'dsh-resource://file/absolute/';
+			if (address.startsWith(ABS)) {
+				try {
+					return decodeURIComponent(address.slice(ABS.length));
+				} catch {
+					return address.slice(ABS.length);
+				}
+			}
+			try {
+				const response = await fetch('/dshm-office2pdf/resolve', {
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					credentials: 'same-origin',
+					body: JSON.stringify({ address }),
+				});
+				if (!response.ok) return '';
+				const payload = await response.json();
+				return payload !== null && payload.ok === true && typeof payload.absolutePath === 'string'
+					? payload.absolutePath : '';
+			} catch {
+				return '';
+			}
+		}
+
+		/** 调 ArkTS 桥"用其他应用打开"。桥在点击时现取（页面重载后旧引用会失效）。 */
+		function invokeOpenWithSystem(absolutePath) {
+			const target = typeof absolutePath === 'string' ? absolutePath.trim() : '';
+			if (target.length === 0) return 'empty';
+			const bridges = globalThis.__DSHM_BRIDGES__;
+			const call = bridges !== null && typeof bridges === 'object' ? bridges.openWithSystem : undefined;
+			if (typeof call !== 'function') return 'noBridge';
+			try {
+				const status = call.call(bridges, target);
+				if (status === 'ok') return null;
+				if (status === 'empty') return 'empty';
+				return 'failed:' + String(status);
+			} catch (error) {
+				return 'failed:' + (error instanceof Error ? error.message : String(error));
+			}
+		}
+
+		/** 工具栏图标按钮（沿用上游工具按钮的样式类 `TextPreview_module_css_default.tool` 不可得，这里用 primitives.Button）。 */
+		function OpenWithSystemAction(props) {
+			const t = typeof props.t === 'function' ? props.t : fallbackT;
+			const [toast, setToast] = react.useState(null);
+			const seq = react.useRef(0);
+			const [busy, setBusy] = react.useState(false);
+			const announce = (text) => {
+				seq.current += 1;
+				setToast({ id: seq.current, text });
+			};
+			const onClick = async () => {
+				if (busy) return;
+				setBusy(true);
+				try {
+					let absolutePath = '';
+					try {
+						const tab = props.useTabInfo().tab;
+						absolutePath = await resolveAbsolutePath(String(tab.contentId || ''));
+					} catch {
+						absolutePath = '';
+					}
+					const failure = invokeOpenWithSystem(absolutePath);
+					if (failure === null) return;
+					if (failure === 'empty') announce(t('empty'));
+					else if (failure === 'noBridge') announce(t('noBridge'));
+					else announce(t('failed', { message: failure.replace(/^failed:/, '') }));
+				} finally {
+					setBusy(false);
+				}
+			};
+			return react.createElement(react.Fragment, null,
+				react.createElement(primitives.Button, {
+					variant: 'ghost',
+					size: 'sm',
+					icon: react.createElement(primitives.IconRightUpOutlineRegular, { size: 14 }),
+					title: t('openWithSystem'),
+					'aria-label': t('openWithSystem'),
+					'data-dshm-office2pdf-action': 'open-with-system',
+					onClick: onClick,
+				}),
+				toast === null ? null : react.createElement(primitives.Toast, {
+					text: toast.text,
+					icon: react.createElement(primitives.IconWarningOutlineRegular, {}),
+					holdMs: 3000,
+					onDone: () => { setToast(null); },
+				}, toast.id));
+		}
+
+		/** 客户端入口：文案 + 逐 id 注册按钮。全部 try/catch，绝不向上抛。 */
+		function apply(ctx) {
+			try {
+				ctx.effect(() => ctx.locale.register('dshmOffice2pdf', DICTS));
+			} catch {
+				// 文案失败退化成 key 本身
+			}
+			try {
+				fallbackT = ctx.locale.bind('dshmOffice2pdf');
+			} catch {
+				fallbackT = (key) => key;
+			}
+			for (const id of TARGET_IDS) {
+				try {
+					ctx.effect(() => ctx.slots.inject('sidebar.right.tab.document.action', () => ctx.slots.register({
+						name: 'sidebar.right.tab.document.action',
+						key: id,
+						locale: 'dshmOffice2pdf',
+					}, OpenWithSystemAction)), 'dshm-office2pdf: action ' + id);
+				} catch {
+					// 单个 id 失败不影响其它
+				}
+			}
+		}
+		exports.apply = apply;
+
+		return module.exports;
+	},
+});

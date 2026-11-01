@@ -1,0 +1,13 @@
+[package]
+name = "office2pdf-capi"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+# 纯 C ABI 的 cdylib：由 HAP 里的 C++ NAPI 外壳（entry/src/main/cpp/office2pdf_ext.cpp）
+# 在运行时 dlopen + dlsym 调用。不做 NAPI 注册，注册交给 CMake 构建的外壳。
+crate-type = ["cdylib"]
+
+[dependencies]
+# 构建脚本会把这里替换成 office2pdf 源码树的绝对路径（见 tools/office2pdf/build-capi.sh）
+office2pdf = { path = "__OFFICE2PDF_SRC__/crates/office2pdf", default-features = false }

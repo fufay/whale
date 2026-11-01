@@ -1,0 +1,30 @@
+{
+  "name": "@deepseek-ai/dshm-office2pdf",
+  "version": "0.1.0",
+  "private": true,
+  "description": "DSHM 端侧插件：侧栏 Office 预览，改走宿主内置的 office2pdf 引擎（docx/pptx → PDF → 官方 PDF 渲染器）。上游内置 office 预览依赖 LibreOfficeKit，在 openharmony-arm64 上不可达；本插件用宿主 /dshm-office2pdf/convert 端点替代。",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/client.js"
+  ],
+  "dsh": {
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-sidebar-documentpreview",
+        "@deepseek-ai/dsh-client-locale"
+      ]
+    }
+  }
+}

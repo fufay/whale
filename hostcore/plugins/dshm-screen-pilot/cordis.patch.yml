@@ -1,0 +1,7 @@
+# dsh-screen-pilot bundle patch：把插件行插入 profile 加载树。
+# 行 id 必须与 Host 插件 `export const name`（src/lib/index.js）一致：
+#   id: screen-pilot == export const name = 'screen-pilot'
+# name 为 npm 包名，loader 据此从 profile node_modules 解析。
+- insert:
+    - id: screen-pilot
+      name: '@deepseek-ai/dshm-screen-pilot'

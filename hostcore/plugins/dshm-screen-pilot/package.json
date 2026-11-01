@@ -1,0 +1,33 @@
+{
+  "name": "@deepseek-ai/dshm-screen-pilot",
+  "version": "0.1.0",
+  "license": "MIT",
+  "type": "module",
+  "main": "./lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json"
+  },
+  "description": "DSH 屏幕控制插件：整桌面/指定窗口截图 + 鼠标键盘注入（uitest uiInput / hidumper 通道），让模型在本机真实屏幕上点击、滑动、打字并截图验证。",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "cordis",
+    "screen",
+    "screenshot",
+    "capture",
+    "input-injection",
+    "mouse",
+    "keyboard",
+    "uitest",
+    "harmonyos",
+    "ohos"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "private": true,
+  "_port_note": "2026-10-16：随核心树自带（原为 profile 独立插件）。改名为 @deepseek-ai/dshm-* 以复用 pack-core 的 DSHM_PLUGIN_PACKAGES 机制（该清单只覆盖此 scope）；删 peerDependencies —— dsh 的兼容性 preflight 只接受精确版本，钉死会被整行禁用。"
+}

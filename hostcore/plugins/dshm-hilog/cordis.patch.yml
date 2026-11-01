@@ -1,0 +1,5 @@
+# dsh-hilog: 在 profile 加载树里插入本插件的一行
+# （与 dsh-proxyagent 同构；entry id 同时是「设置」页的命名空间 NS）
+- insert:
+    - id: dsh-hilog
+      name: '@deepseek-ai/dshm-hilog'

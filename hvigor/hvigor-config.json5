@@ -1,0 +1,31 @@
+/*
+ * hvigor 构建器配置（2026-10-16 补齐）。
+ *
+ * 【为什么必须存在】`devecocli build` / hvigorw 在 sync 阶段会读它；
+ * 缺失时直接 `00304004 Not Found: Hvigor config file …/hvigor/hvigor-config.json5 does not exist`，
+ * 构建根本走不到编译。
+ * 【为什么此前不在库里】`.gitignore:31` 的 `/hvigor/` 把整个目录忽略了 —— 而该目录下
+ * 既有缓存（.hvigor/、node_modules/ 之类，确实不该入库）也有这份**配置**（必须入库）。
+ * 本文件同时把 `/hvigor/` 改成「忽略内容、例外放行本文件」，避免下次克隆又缺。
+ * 【取值口径】`modelVersion` 必须与本工程 `oh-package.json5` 的 6.1.1 **严格一致** ——
+ * 二者不一致时 hvigor sync 直接 `00303027 Configuration Error`（实测：抄 ApiBox 的 5.0.0 被拒）。
+ */
+{
+  "modelVersion": "6.1.1",
+  "dependencies": {},
+  "execution": {
+    "daemon": true,
+    "incremental": true,
+    "parallel": true,
+    "typeCheck": false
+  },
+  "logging": {
+    "level": "info"
+  },
+  "debugging": {
+    "stacktrace": false
+  },
+  "nodeOptions": {
+    "maxOldSpaceSize": 8192
+  }
+}

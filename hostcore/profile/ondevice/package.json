@@ -1,0 +1,28 @@
+{
+  "name": "dshm-ondevice-profile",
+  "private": true,
+  "version": "0.0.0",
+  "description": "DSHM 端侧 profile：应用内自足运行 dsh Host 时使用的组合（bundle 顺序 + 用户 patch 层）。",
+  "dependencies": {},
+  "dsh": {
+    "profile": {
+      "bundles": [
+        "@deepseek-ai/dsh-base",
+        "@deepseek-ai/dsh-web-app",
+        "@deepseek-ai/dsh-personalized-recommendations",
+        "@deepseek-ai/dsh-experimental-session-search",
+        "@deepseek-ai/dsh-experimental-ralph-bundle",
+        "@deepseek-ai/dsh-experimental-badge-skill-bundle",
+        "@deepseek-ai/dsh-experimental-session-titles-bundle",
+        "@deepseek-ai/dsh-experimental-cot-translation-bundle",
+        "@deepseek-ai/dsh-experimental-auto-review",
+        "@deepseek-ai/dsh-experimental-tool-worktree",
+        "@deepseek-ai/dsh-experimental-liveshare",
+        "@deepseek-ai/dsh-experimental-forge-bundle",
+        "@deepseek-ai/dsh-experimental-agent-team-profile"
+      ],
+      "removeBundles": [],
+      "patchReload": "startup"
+    }
+  }
+}
