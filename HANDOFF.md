@@ -9,20 +9,23 @@
 **核心树口径**：以 `hostcore/core-recipe.json` 为准，当前读数 `0.2.2-alpha.2+whale.2`（本轮未动核心树，只改了 `entry/` ArkTS）
 **签名口径**：开发包默认用 365 天无 ACL 调试 Profile（`dist/signing/dev-profile/whale-dev-debug.p7b`，见 `docs/125` §八）
 
-## 0. 最近一次（2026-11-03）：聊天链接双开修复
+## 0. 最近一次（2026-11-03）：链接外开兜底收窄（两处）
 
-- 现象：聊天里点链接，**侧栏浏览器 tab 打开了**，同时还弹「打开外部浏览器？」（点「打开」再开系统浏览器）。
-- 根因：上游锚点 onClick 自己 `preventDefault()` 后按 `linkOpening` 分流（侧栏 tab 已在本档启用）；
-  壳垫片 `OPEN_LINK_SHIM_JS` 又在**捕获阶段**兜底投 `openExternal(url,'confirm')`，一次点击两条路都走。
-- 修法（`entry/src/main/ets/pages/WebApp.ets`）：click 监听改**冒泡** + `if (ev.defaultPrevented) return`
-  （页面接管的点击壳不再兜底）+ confirm 1.5s 同 URL 去重。
-- 验证：垫片 5 项行为断言 PASS，旧代码负控 3 项 FAIL；HAP **396,444,623 B** sha256 `944e305a…`
-  已 `hdc install -r` 覆盖安装成功（同签名同 versionCode 1010000，el2 数据未动），token/Profile 正常。
-- 文档：`docs/131`。遗留：侧栏是 iframe，`frame-ancestors 'none'` 的站点（GitHub 等）在侧栏打不开，
-  只能走系统浏览器（侧栏工具栏「在系统浏览器中打开」）—— 官方 Web 形态固有限制，非本次引入。
-- **待用户冒烟**：重启新 Whale（WhaleX）→ 设置→通用确认「网页链接默认打开方式 = 侧边栏」→
-  点一条聊天里的 http(s) 链接，期望「只在侧栏打开、不弹确认框」；再把该设置改成「新标签页」，
-  期望「弹一次确认框 → 系统浏览器」。
+- ① 聊天里点链接：侧栏已打开、还弹「打开外部浏览器？」——上游锚点 onClick 自己
+  `preventDefault()` 后开侧栏，壳垫片又在**捕获阶段**投一次 `confirm`。修法：监听改**冒泡** +
+  `if (ev.defaultPrevented) return` + confirm 1.5s 同 URL 去重。
+- ② 侧栏浏览器（应用自己开的 iframe）里点「弹新窗」的链接（B 站视频）：端侧
+  `multiWindowAccess=false` 弹不出真窗，旧逻辑掉到 confirm。修法：子框架内
+  `window.open` / `_blank` 改为**当前侧栏 tab 内自跳转**（`inSubframe` + `navigateHere`，800ms 去重）。
+  顶栏行为不变；「侧栏再开新 tab」需要新增 client 插件（动核心树），本次不做。
+- 验证：垫片行为断言 顶栏 5 项 / 子框架 4 项全 PASS，旧代码负控 3 项 FAIL；
+  HAP **396,450,896 B** sha256 `1e051343…`，`ets/modules.abc` 内新标记各 1 处；
+  已 `hdc install -r` 覆盖安装（同签名同 versionCode 1010000，el2 数据未动），token/Profile 正常。
+- 坑：`OPEN_LINK_SHIM_JS` 是 TS 模板串，垫片内注释出现反引号会提前终止模板串（ArkTS 报
+  `',' expected` 且行号落在几十行之后）。改这个垫片时注释里禁反引号。
+- 文档：`docs/131`。
+- **待用户冒烟**：重启 WhaleX → ①聊天里点链接（设置=侧边栏）应只在侧栏打开、不弹框；
+  ②侧栏浏览器里点 B 站视频应直接在侧栏内跳到视频页、不弹框；③设置改成「新标签页」后点聊天链接应弹一次确认框。
 
 ---
 

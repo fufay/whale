@@ -473,6 +473,16 @@ const THEME_SHIM_JS: string = `(function () {
  * 而侧栏 tab 不可用时上游正好退化成 `window.open`，壳的兜底仍接得住（那条路不变）。
  * 顺带消掉 `linkOpening === "new-tab"` 时「捕获兜底 + window.open 兜底」弹两次框的问题。
  *
+ * 【2026-11-03 第二处：侧栏浏览器 tab 里的「弹新窗」不再交系统浏览器】
+ * 侧栏浏览器 tab 是应用自己开的 iframe（`dsh-client-ui-sidebar-browser` 的
+ * `IframePresentation`，sandbox 带 `allow-popups-to-escape-sandbox`）：桌面 Web 形态下
+ * 站内点「新窗」会真弹一个浏览器窗；端侧 ArkWeb `multiWindowAccess=false` 弹不出来，
+ * 旧逻辑就掉到 confirm ⇒ 在侧栏里点 B 站视频会弹「打开外部浏览器？」。
+ * 现在：`window.top !== window`（子框架）里的 `window.open` / `target="_blank"` 请求
+ * 一律在**当前侧栏 tab 内**自跳转（`navigateHere`，800ms 同 URL 去重），不弹框、不交系统；
+ * 顶栏（应用主体）行为不变。地址栏会显示插件的「URL 已变化」态、后退仍按插件
+ * `IframeImpl` 的应用已知历史回退 —— 这是插件对「非应用发起导航」的既有表现。
+ *
  * 【判据】`/dsh/authorize`、`/oauth/authorize` 视为授权页 → 自动外开；其余 http(s)
  * 一律确认。登录用 204 收尾（host `:834-840`，仅 `login_source=web` 才回关页 HTML）
  * ⇒ 授权页**绝不能**在本 WebView 内打开，否则应用页面被 204 空页替换。
@@ -524,6 +534,31 @@ const OPEN_LINK_SHIM_JS: string = `(function () {
 
   function isAuthorizeUrl(url) {
     return url.indexOf('/dsh/authorize') >= 0 || url.indexOf('/oauth/authorize') >= 0;
+  }
+
+  /* 是否跑在子框架里（= 侧栏浏览器 tab 自己开的那个 iframe）。
+     跨源取 window.top 会抛，抛了也说明不是顶层（顶层比较不会抛）⇒ 按子框架处理。 */
+  function inSubframe() {
+    try { return window.top !== window; } catch (e) { return true; }
+  }
+
+  /* 子框架里的「新窗」请求：在**当前这个侧栏 tab 内**跳过去。
+     桌面 Web 形态下这里本就是真弹窗（iframe sandbox 带 allow-popups-to-escape-sandbox），
+     端侧 ArkWeb multiWindowAccess=false 弹不出来，旧逻辑就会掉到「打开外部浏览器？」
+     确认框 —— 用户在侧栏里点 B 站视频必然撞上。改成自跳转：不弹框、不开外部浏览器；
+     工具栏后退仍按插件 IframeImpl 的应用已知历史回退（页内跳转会让地址栏显示
+     「URL 已变化」，这是插件对非应用发起导航的既有表现，不是本次引入）。
+     800ms 同 URL 去重：页面可能既 window.open 又保留 target=_blank 锚点默认行为。 */
+  var lastNav = { url: '', at: 0 };
+  function navigateHere(url) {
+    var u = String(url).trim();
+    if (!isHttpUrl(u)) { return; }
+    var now = Date.now();
+    if (lastNav.url === u && now - lastNav.at < 800) { return; }
+    lastNav.url = u;
+    lastNav.at = now;
+    log('subframe navigate ' + u);
+    try { window.location.assign(u); } catch (e) { /* 导航失败：保持页面不动 */ }
   }
 
   /* 桥没就位时**不能丢掉这次外开**：桥的注册与文档开始垫片的先后关系在真机上
@@ -717,6 +752,12 @@ const OPEN_LINK_SHIM_JS: string = `(function () {
         if (anchor.getAttribute('target') !== '_blank') { return; }
         var href = anchor.href;
         if (!isHttpUrl(href)) { return; }
+        /* 侧栏浏览器 tab 里的页面要开新窗：在这个 tab 内跳过去，不弹框、不交系统浏览器 */
+        if (inSubframe()) {
+          ev.preventDefault();
+          navigateHere(href);
+          return;
+        }
         /* 只有真正投出去了才 preventDefault：桥未就位时放行，交由 WebView 默认行为
            （仍是丢弃，与改动前一致），绝不制造新的「点了没反应」。
            不 stopPropagation —— 页面前端自己挂在 <a> 上的回调照旧该跑。 */
@@ -733,6 +774,11 @@ const OPEN_LINK_SHIM_JS: string = `(function () {
     if (typeof nativeOpen === 'function') {
       globalThis.open = function (url) {
         if (isHttpUrl(url)) {
+          /* 侧栏浏览器 tab 内的页面（子框架）弹新窗 ⇒ 就地在这个 tab 里跳，见 navigateHere */
+          if (inSubframe()) {
+            navigateHere(url);
+            return null;
+          }
           out(url, isAuthorizeUrl(url));
           return null;
         }
