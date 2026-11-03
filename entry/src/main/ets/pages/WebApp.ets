@@ -548,12 +548,35 @@ const OPEN_LINK_SHIM_JS: string = `(function () {
      确认框 —— 用户在侧栏里点 B 站视频必然撞上。改成自跳转：不弹框、不开外部浏览器；
      工具栏后退仍按插件 IframeImpl 的应用已知历史回退（页内跳转会让地址栏显示
      「URL 已变化」，这是插件对非应用发起导航的既有表现，不是本次引入）。
-     800ms 同 URL 去重：页面可能既 window.open 又保留 target=_blank 锚点默认行为。 */
+
+     【两道闸，2026-11-03 真机踩出来的】第一版没有闸，B 站页一开就无限自跳（约 250ms 一轮、
+     URL 一直是同一个、地址栏不动）—— 站点的**防 iframe / 弹新窗脚本**在文档很早就调
+     window.open(location.href)，垫片一跳又是新文档、新垫片，于是自我循环。故：
+       ① 同址不跳：目标与当前文档同 origin+path+search（忽略 hash）就跳过 —— 直接掐断
+          「跳到我自己」这一类循环；
+       ② 必须有用户手势：navigateHere 只在最近 1.5s 内有真实点击时才生效（点击在**捕获阶段**
+          就记账，早于站点自己的 onClick 里的 window.open）；页面自己在加载期、定时器里发起的
+          window.open（广告/登录弹窗/防嵌套脚本）一律不跳，只落诊断。
+     再加一条 800ms 同 URL 去重（锚点 + window.open 同一次点击常常都调）。 */
+  var lastGestureAt = 0;
   var lastNav = { url: '', at: 0 };
+  function normalizeUrl(u) {
+    try {
+      var x = new URL(u);
+      return x.origin + x.pathname + x.search;
+    } catch (e) { return String(u); }
+  }
   function navigateHere(url) {
     var u = String(url).trim();
     if (!isHttpUrl(u)) { return; }
     var now = Date.now();
+    if (now - lastGestureAt > 1500) { log('subframe skip no-gesture ' + u); return; }
+    var here = '';
+    try { here = globalThis.location.href; } catch (e) { here = ''; }
+    if (here !== '' && normalizeUrl(here) === normalizeUrl(u)) {
+      log('subframe skip same-url ' + u);
+      return;
+    }
     if (lastNav.url === u && now - lastNav.at < 800) { return; }
     lastNav.url = u;
     lastNav.at = now;
@@ -731,6 +754,16 @@ const OPEN_LINK_SHIM_JS: string = `(function () {
       };
     }
   } catch (e) { /* fetch 不可写：只剩路径 2 */ }
+
+  /* ---- 用户手势记账（捕获阶段，只记不做事）----
+     子框架里的 window.open 常被站点写在 onClick 里 —— 若等到冒泡到 document 才记账就晚了
+     （站点 onClick 已经先调过 window.open）。捕获阶段跑在站点处理器之前，正好用。
+     只认真实点击（isTrusted）：加载期/定时器里的 window.open 不算手势，见 navigateHere 的两道闸。 */
+  try {
+    document.addEventListener('click', function (ev) {
+      try { if (ev.isTrusted !== false) { lastGestureAt = Date.now(); } } catch (e) { /* 忽略 */ }
+    }, true);
+  } catch (e) { /* 无 document：忽略 */ }
 
   /* ---- 路径 2：用户点击的外链 ---- */
   try {

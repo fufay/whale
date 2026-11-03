@@ -16,16 +16,24 @@
   `if (ev.defaultPrevented) return` + confirm 1.5s 同 URL 去重。
 - ② 侧栏浏览器（应用自己开的 iframe）里点「弹新窗」的链接（B 站视频）：端侧
   `multiWindowAccess=false` 弹不出真窗，旧逻辑掉到 confirm。修法：子框架内
-  `window.open` / `_blank` 改为**当前侧栏 tab 内自跳转**（`inSubframe` + `navigateHere`，800ms 去重）。
+  `window.open` / `_blank` 改为**当前侧栏 tab 内自跳转**（`inSubframe` + `navigateHere`）。
   顶栏行为不变；「侧栏再开新 tab」需要新增 client 插件（动核心树），本次不做。
-- 验证：垫片行为断言 顶栏 5 项 / 子框架 4 项全 PASS，旧代码负控 3 项 FAIL；
-  HAP **396,450,896 B** sha256 `1e051343…`，`ets/modules.abc` 内新标记各 1 处；
+- ③ ②的第一版把 B 站页面变成**无限刷新**（每 ~250ms 一轮、同一 URL、地址栏不动）：站点防 iframe
+  脚本在文档早期 `window.open(location.href)`，自跳转 = 新文档 + 新垫片 ⇒ 自我循环（跨文档后
+  800ms 去重无效）。修法：`navigateHere` 加**两道闸** —— 同址（origin+path+search）不跳；
+  必须有 **1.5s 内真实点击手势**（捕获阶段记 `isTrusted`，早于站点 onClick）。
+- 验证：垫片行为断言 顶栏 5 项 / 子框架 9 项（含无手势、同址两类循环场景）全 PASS，
+  旧代码负控 3 项 FAIL；最终 HAP **396,448,917 B** sha256 `d8c4583f…`，`ets/modules.abc` 内
+  `normalizeUrl` / `subframe skip no-gesture` / `subframe skip same-url` / `isTrusted` 各 1 处；
   已 `hdc install -r` 覆盖安装（同签名同 versionCode 1010000，el2 数据未动），token/Profile 正常。
 - 坑：`OPEN_LINK_SHIM_JS` 是 TS 模板串，垫片内注释出现反引号会提前终止模板串（ArkTS 报
   `',' expected` 且行号落在几十行之后）。改这个垫片时注释里禁反引号。
 - 文档：`docs/131`。
 - **待用户冒烟**：重启 WhaleX → ①聊天里点链接（设置=侧边栏）应只在侧栏打开、不弹框；
-  ②侧栏浏览器里点 B 站视频应直接在侧栏内跳到视频页、不弹框；③设置改成「新标签页」后点聊天链接应弹一次确认框。
+  ②侧栏浏览器里点 B 站视频应**只跳一次**到视频页、不弹框、不循环刷新；③设置改成「新标签页」
+  后点聊天链接应弹一次确认框。
+- 读新 Whale 端侧日志（本机可用）：`hdc shell "tail -c 20000 /data/app/el2/100/base/com.jwhsoft.whale/haps/entry/files/diag-web-console"`
+  —— 垫片的 `[dshm-link] …` 行都在这里（旧 Whale 的在 `/data/storage/el2/base/haps/entry/files/`，本会话读不到）。
 
 ---
 

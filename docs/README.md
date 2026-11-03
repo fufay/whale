@@ -147,7 +147,7 @@
 - `128-alpha2-Phase4-门禁与产物核验.md` —— 2026-10-28：Phase 4 全量门禁 **34 PASS / 1 BLOCKED(compat-drift 生成器未适配 alpha.2) / 1 SKIP(需网络的 installer)**；修复陈旧门禁 2 个（profile-pnpm H5 锚点断言、docs/90 行号引用）；HAP 341,046,818 B / core zip sha `d0068f24…` 与 resfile 逐字节一致；体积 +9.5 MB（+2.9%）。
 - `129-alpha2-数据迁移（备份恢复）.md` —— 2026-10-28：whale-backup 2026-10-28 → 新 Whale 的沙箱层恢复（Host 启动一次性 `dshm-restore`，1.2s；附件 725/138.7MB、state 413、AGENTS/凭据）；ZIP 由 dsh-config-manager 用户恢复（顺序：先 Host 恢复，后 ZIP）。
 - `130-Office预览走office2pdf（HAP内置引擎）.md` —— 2026-10-29：Office 预览与官方对齐（官方 UI + HAP 内置 Rust/Typst 引擎顶替 `officeToPdf` 服务）；含 6 个接点/字体链/白名单/回退/门禁 `check-office2pdf-wiring`（22 项）；真机 HAP `ce3f91e2…`、core `+whale.2`。
-- `131-聊天/侧栏网页里的链接不再弹外部浏览器确认框.md` —— 2026-11-03：同一处壳垫片连修两件事，都是「壳的外链兜底多管了一手」。①聊天点链接：上游锚点 onClick 自己 `preventDefault` 后开侧栏，壳在**捕获阶段**又投 `confirm` ⇒ 双开；改冒泡 + `if (ev.defaultPrevented) return` + confirm 1.5s 去重。②侧栏浏览器（应用自己开的 iframe）里点「弹新窗」的链接（B 站视频）：端侧 `multiWindowAccess=false` 弹不出真窗 ⇒ 旧逻辑掉到 confirm；改为子框架内 `window.open`/`_blank` 的**当前 tab 自跳转**（800ms 同 URL 去重）。垫片行为断言（顶栏 5 项 / 子框架 4 项）全 PASS、旧代码负控 3 项 FAIL；HAP `1e051343…`（396,450,896 B）已覆盖安装。坑：模板串里的注释不能出现反引号。
+- `131-聊天/侧栏网页里的链接不再弹外部浏览器确认框.md` —— 2026-11-03：同一处壳垫片连修三件「壳的外链兜底多管了一手」。①聊天点链接：上游锚点 onClick 自己 `preventDefault` 后开侧栏，壳在**捕获阶段**又投 `confirm` ⇒ 双开；改冒泡 + `if (ev.defaultPrevented) return` + confirm 1.5s 去重。②侧栏浏览器（应用自己开的 iframe）里点「弹新窗」的链接（B 站视频）：端侧 `multiWindowAccess=false` 弹不出真窗 ⇒ 旧逻辑掉到 confirm；改为子框架内**当前 tab 自跳转**。③自跳转把 B 站页面变成无限刷新（防 iframe 脚本 `window.open(location.href)` 自我循环，真机日志 ~250ms/轮同一 URL）：加**同址不跳** + **1.5s 真实手势**两道闸。垫片断言（顶栏 5 / 子框架 9）全 PASS、旧代码负控 3 项 FAIL；HAP `d8c4583f…`（396,448,917 B）已覆盖安装。坑：模板串内注释禁反引号。
 
 其它调研材料（官方桌面端 README、上游协议包文档副本、社区工程浅克隆等）按需放在同一目录即可，不入库。
 
