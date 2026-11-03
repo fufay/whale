@@ -21,8 +21,8 @@ HAP 内自带 Node 运行时与 dsh 核心树，核心在本机 `127.0.0.1` 上�
 
 | 平台 | 仓库 | 未签名 HAP |
 |---|---|---|
-| GitHub | <https://github.com/fufay/whale> | <https://github.com/fufay/whale/releases/download/v1.1.0/whale-unsigned.hap> |
-| AtomGit | <https://atomgit.com/Kevin911/whale> | <https://atomgit.com/Kevin911/whale/releases/download/v1.1.0/whale-unsigned.hap> |
+| GitHub | <https://github.com/fufay/whale> | <https://github.com/fufay/whale/releases/download/v1.1.1/whale-unsigned.hap> |
+| AtomGit | <https://atomgit.com/Kevin911/whale> | <https://atomgit.com/Kevin911/whale/releases/download/v1.1.1/whale-unsigned.hap> |
 
 ## 功能概览
 
