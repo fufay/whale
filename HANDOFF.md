@@ -218,6 +218,18 @@
 - 注意：AtomGit 的 release 附件不是 `attach_files`，而是
   `GET /releases/:tag/upload_url` → 拿 `{url, headers}` → **PUT** 上传（OBS 直传，`success` 即完成）。
 
+### 2026-11-03：调试签名 Profile 过期问题根治（改用 365 天无 ACL Profile）
+
+- 现象：11-03 起 WhaleX 弹「应用已过期，无法继续使用」——**不是 JIT Profile**，是带 4 项 ACL 的调试 Profile
+  `whale-dev-debug-full` 于 **2026-11-02 20:54** 到期（AGC 对带 ACL 的调试 Profile 只签 5–7 天）；
+- 先续签一次（`whale-dev-full-1103`，到 11-08），随后做 **A/B 实测**：同 HAP 换 Profile，
+  `atm dump -t -b com.jwhsoft.whale` 读 token 权限 ⇒ **带 ACL 与无 ACL 完全一致**；
+  `ACCESS_USER_FULL_DISK` 在本机系统**无定义**（`atm perm -g` 报 does not exist），两者都是 -1；
+- 结论：ACL Profile 无收益 ⇒ 统一改用 **`whale-dev-debug.p7b`（无 ACL，有效期 2027-10-27）**；
+  `tools/build-dev-hap.sh` / `tools/sign-dev-hap.sh` 默认 Profile 已切换（可用 `WHALE_DEV_PROFILE` 覆盖）；
+- 真机：已用 365 天版重签并装机（HAP `9e3b2ea5…`），启动正常；
+- 文档：`docs/125 §八`。
+
 ## 3. 下一步（按优先级）
 
 1. **Phase 0 装机冒烟（用户执行）**：装 `whale-node2421-phase0-signed.hap` → 看 `host-ready.json.runtime.nodeVersion=v24.21.0`/`jitless=true`/natives → 会话/工具 → **系统重启一次**；失败用旧 HAP/libnode 回滚。

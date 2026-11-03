@@ -17,7 +17,8 @@ HAP_OUT="${2:-${HAP_IN%-unsigned.hap}-devsigned.hap}"
 P12="${WHALE_DEV_P12:-$(ls "$REPO"/dist/signing/csr-*/key_*.p12 2>/dev/null | head -1)}"
 PWD_FILE="${WHALE_DEV_PWD_FILE:-$(dirname "$P12")/password.txt}"
 CERT="${WHALE_DEV_CERT:-$REPO/../../certificate/whale-debug/whale.cer}"
-PROFILE="${WHALE_DEV_PROFILE:-$REPO/dist/signing/dev-profile/whale-dev-debug-full.p7b}"
+# 默认 365 天、无 ACL（实测与带 ACL 的 Profile 权限完全一致，见 tools/build-dev-hap.sh 注释）
+PROFILE="${WHALE_DEV_PROFILE:-$REPO/dist/signing/dev-profile/whale-dev-debug.p7b}"
 [ -f "$P12" ] && [ -f "$PWD_FILE" ] && [ -f "$CERT" ] && [ -f "$PROFILE" ] || { echo "签名材料缺失（检查 $P12 / $PWD_FILE / $CERT / $PROFILE）" >&2; exit 1; }
 PW=$(cat "$PWD_FILE")
 "$TC/hap-sign-tool" sign-app -mode localSign -inFile "$HAP_IN" -outFile "$HAP_OUT" \

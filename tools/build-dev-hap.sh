@@ -50,8 +50,18 @@ with zipfile.ZipFile(out, 'w', zipfile.ZIP_STORED) as w:
 print('repacked stored:', out, len(entries), 'entries')
 PY
 
-# 3) 手工签名（默认用带 ACL 的 full Profile；可用 WHALE_DEV_PROFILE 覆盖）
-WHALE_DEV_PROFILE="${WHALE_DEV_PROFILE:-$REPO/dist/signing/dev-profile/whale-dev-debug-full.p7b}" \
+# 3) 手工签名（默认用 **365 天**的 `whale-dev-debug`；可用 WHALE_DEV_PROFILE 覆盖）
+#
+# 【为什么不用带 ACL 的 `whale-dev-debug-full`（2026-11-03 实测纠正）】
+# 曾以为"全功能包必须带 ACL 的 Profile"，于是用 AGC 的 ACL 调试 Profile —— AGC 对"带受限权限
+# 的调试 Profile"只签发 **5–7 天**，导致应用反复"应用已过期"。
+# 实测对照（同一 HAP、只换 Profile，用 `atm dump -t -b com.jwhsoft.whale` 读 token 权限状态）：
+#   带 ACL  vs  无 ACL：
+#     ALLOW_EXTERNAL_NATIVE_CODE / CUSTOM_SANDBOX / READ_WRITE_USER_FILE  两者都是 grantStatus=0（已授予）
+#     ACCESS_USER_FULL_DISK                                              两者都是 -1（本机系统无此权限定义，`atm perm -g` 报 "does not exist"）
+#   ⇒ **ACL Profile 没有带来任何额外权限**，纯属白折腾；用 365 天的无 ACL Profile 即可。
+# 恢复"带 ACL"只需：WHALE_DEV_PROFILE=dist/signing/dev-profile/whale-dev-debug-full.p7b
+WHALE_DEV_PROFILE="${WHALE_DEV_PROFILE:-$REPO/dist/signing/dev-profile/whale-dev-debug.p7b}" \
   sh "$REPO/tools/sign-dev-hap.sh" "$TMP" "$OUT"
 rm -f "$TMP"
 echo "OK: $OUT"
