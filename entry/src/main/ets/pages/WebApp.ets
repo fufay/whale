@@ -459,6 +459,20 @@ const THEME_SHIM_JS: string = `(function () {
  * `window.open`（`dsh-client-ui-settings-account/lib/client.js:4265` 的
  * 「联系我们」）。这些不是壳职责，按规范先弹确认再开。
  *
+ * 【2026-11-03 修「一次点击开两处」：链接在侧栏打开时不再弹外开确认框】
+ * 聊天正文里的链接由上游 Markdown 渲染成 `<a target="_blank">`，它的 onClick **自己会
+ * `preventDefault()` 再按设置分流**（`dsh-web-frontend/dist/assets` 里成本化名的锚点组件：
+ * `linkOpening === "sidebar"` 且 `sidebarRightTabs.get("browser")` 已注册 ⇒
+ * `ctx.sidebarRight.openTab("browser", {params:{url}})`；否则 `window.open`）。
+ * 侧栏浏览器 tab 已在本档启用（profile `ui-sidebar-browser`），于是同一次点击变成：
+ * 上游开侧栏 tab **＋** 本垫片在**捕获阶段**又投一次 confirm ⇒ 侧栏已经打开了，还弹一个
+ * 「打开外部浏览器？」（点确定就再开一份系统浏览器）。
+ * 修法：监听改**冒泡**并先看 `ev.defaultPrevented` —— 页面自己接管过的点击壳不再兜底；
+ * 页面没接管的（「联系我们」裸锚点、AccountSection 的授权锚点）照旧弹确认/自动外开。
+ * 判据是「页面有没有接管」，不是「设置项是不是侧栏」：设置项在 web 侧 store 里，壳读不到；
+ * 而侧栏 tab 不可用时上游正好退化成 `window.open`，壳的兜底仍接得住（那条路不变）。
+ * 顺带消掉 `linkOpening === "new-tab"` 时「捕获兜底 + window.open 兜底」弹两次框的问题。
+ *
  * 【判据】`/dsh/authorize`、`/oauth/authorize` 视为授权页 → 自动外开；其余 http(s)
  * 一律确认。登录用 204 收尾（host `:834-840`，仅 `login_source=web` 才回关页 HTML）
  * ⇒ 授权页**绝不能**在本 WebView 内打开，否则应用页面被 204 空页替换。
@@ -490,6 +504,9 @@ const OPEN_LINK_SHIM_JS: string = `(function () {
 
   /* 已自动外开过的 URL：watch 流会重复推送同一 attempt，只开一次 */
   var opened = {};
+  /* 上一次 confirm 投递（URL + 时刻）：同一次点击只该弹一个确认框，
+     见下面 out() 里的去重。 */
+  var lastConfirm = { url: '', at: 0 };
   /* 诊断用：已记录的"非账号"item 帧数量（只记前 20 条，避免刷屏） */
   var itemFrames = 0;
   /* 诊断用：已记录的"非账号"fetch 条数（只记前 300 条，覆盖启动爆发 + 开设置 + 点登录） */
@@ -523,6 +540,13 @@ const OPEN_LINK_SHIM_JS: string = `(function () {
     var b = bridges();
     if (!b) { return false; }
     if (!auto) {
+      /* 同一次点击只弹一个框：兜底路径理论上只剩一条（页面的 onClick 若接管了，
+         路径 2 会先看 defaultPrevented 退出），但窗口期内的同一个 URL 仍按已投递
+         处理，避免两条兜底同时命中时叠两个「打开外部浏览器？」。 */
+      var now = Date.now();
+      if (lastConfirm.url === u && now - lastConfirm.at < 1500) { return true; }
+      lastConfirm.url = u;
+      lastConfirm.at = now;
       try { b.openExternal(u, 'confirm'); log('deliver confirm ' + u); } catch (e) { /* 桥异常：忽略 */ }
       return true;
     }
@@ -675,8 +699,14 @@ const OPEN_LINK_SHIM_JS: string = `(function () {
 
   /* ---- 路径 2：用户点击的外链 ---- */
   try {
+    /* 冒泡阶段（末尾的 false）而不是捕获阶段：要等页面自己的 onClick 先跑完，
+       才能用 defaultPrevented 判断「这次点击页面接没接管」。 */
     document.addEventListener('click', function (ev) {
       try {
+        /* 页面已经接管这次点击：上游 Markdown 锚点的 onClick 会先 preventDefault，
+           再按设置开侧栏浏览器 tab / window.open。壳再兜底就会「侧栏开一份 + 弹外部
+           浏览器确认框」两开（见本常量上方 2026-11-03 的注释）。 */
+        if (ev.defaultPrevented) { return; }
         var node = ev.target;
         var anchor = null;
         while (node && node !== document) {
@@ -689,13 +719,12 @@ const OPEN_LINK_SHIM_JS: string = `(function () {
         if (!isHttpUrl(href)) { return; }
         /* 只有真正投出去了才 preventDefault：桥未就位时放行，交由 WebView 默认行为
            （仍是丢弃，与改动前一致），绝不制造新的「点了没反应」。
-           不 stopPropagation —— 页面前端自己挂在 <a> 上的回调照旧该跑，我们在捕获
-           阶段只做「顺带把 URL 交给系统」，不该改变页面的行为。 */
+           不 stopPropagation —— 页面前端自己挂在 <a> 上的回调照旧该跑。 */
         if (out(href, isAuthorizeUrl(href))) {
           ev.preventDefault();
         }
       } catch (e) { /* 拦截失败：交给 WebView 默认行为（仍是丢弃，不劣化） */ }
-    }, true);
+    }, false);
   } catch (e) { /* 无 document：忽略 */ }
 
   /* window.open（官方的「联系我们」；授权页若用这条也一并接住） */

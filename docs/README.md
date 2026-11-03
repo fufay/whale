@@ -147,6 +147,7 @@
 - `128-alpha2-Phase4-门禁与产物核验.md` —— 2026-10-28：Phase 4 全量门禁 **34 PASS / 1 BLOCKED(compat-drift 生成器未适配 alpha.2) / 1 SKIP(需网络的 installer)**；修复陈旧门禁 2 个（profile-pnpm H5 锚点断言、docs/90 行号引用）；HAP 341,046,818 B / core zip sha `d0068f24…` 与 resfile 逐字节一致；体积 +9.5 MB（+2.9%）。
 - `129-alpha2-数据迁移（备份恢复）.md` —— 2026-10-28：whale-backup 2026-10-28 → 新 Whale 的沙箱层恢复（Host 启动一次性 `dshm-restore`，1.2s；附件 725/138.7MB、state 413、AGENTS/凭据）；ZIP 由 dsh-config-manager 用户恢复（顺序：先 Host 恢复，后 ZIP）。
 - `130-Office预览走office2pdf（HAP内置引擎）.md` —— 2026-10-29：Office 预览与官方对齐（官方 UI + HAP 内置 Rust/Typst 引擎顶替 `officeToPdf` 服务）；含 6 个接点/字体链/白名单/回退/门禁 `check-office2pdf-wiring`（22 项）；真机 HAP `ce3f91e2…`、core `+whale.2`。
+- `131-聊天链接在侧栏打开时不再弹外部浏览器确认框.md` —— 2026-11-03：修「点链接既在侧栏打开、又弹『打开外部浏览器？』」。上游锚点 onClick 自己 `preventDefault()` 后按 `linkOpening` 分流（侧栏 tab 已启用），壳垫片的**捕获阶段**兜底又投一次 `confirm` ⇒ 双开。修法：监听改冒泡 + `if (ev.defaultPrevented) return`（页面接管的点击壳不再兜底）+ confirm 1.5s 同 URL 去重；垫片 5 项断言 PASS、旧代码负控 3 项 FAIL；HAP `944e305a…`（396,444,623 B）已覆盖安装。
 
 其它调研材料（官方桌面端 README、上游协议包文档副本、社区工程浅克隆等）按需放在同一目录即可，不入库。
 
