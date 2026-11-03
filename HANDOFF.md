@@ -35,6 +35,25 @@
 - 读新 Whale 端侧日志（本机可用）：`hdc shell "tail -c 20000 /data/app/el2/100/base/com.jwhsoft.whale/haps/entry/files/diag-web-console"`
   —— 垫片的 `[dshm-link] …` 行都在这里（旧 Whale 的在 `/data/storage/el2/base/haps/entry/files/`，本会话读不到）。
 
+
+## 0.1 发行（v1.1.1，2026-11-03）
+
+- 版本：`versionName 1.1.1` / `versionCode 1010001`（`AppScope/app.json5`）；核心树未变（`0.2.2-alpha.2+whale.2`）。
+- 发行物：**未签名** `whale-unsigned.hap` · **394,071,930 B** · sha256 `c1ffeaa32436e04fb7ac09846c2e147d831e946068ad327354e5d275daec976a`
+  （源文件 `dist/release/whale-unsigned.hap`；同目录 `whale-signed-1.1.1.hap` 396,448,917 B 是开发签名版，**不入发行**）。
+- 两个平台的 tag/发行都已发：GitHub <https://github.com/fufay/whale/releases/tag/v1.1.1>（release id 432810453，asset id 705913262）、
+  AtomGit <https://atomgit.com/Kevin911/whale/releases/tag/v1.1.1>；README 下载表已指向 v1.1.1。
+- 核验：GitHub asset digest = `sha256:c1ffeaa3…`；AtomGit 资产按 URL 重新下载一遍，大小/sha256 与本地逐字节一致。
+- **本机装机坑（2026-11-03 实测）**：`versionCode` 从 1010000 升到 1010001 后再 `hdc install -r` 会失败：
+  `install failed due to grant request permissions failed. PermissionName: ohos.permission.ACCESS_USER_FULL_DISK`
+  —— **同 versionCode 的覆盖安装能过**（对照实验：重装 d8c4583f 的 1.1.0 立即成功），
+  说明升级路径会拿 Profile 的 ACL 校验受限权限，而本机默认用 365 天**无 ACL** Profile。
+  现状：设备上仍是 1.1.0（代码与发行包一致，仅版本号字段不同）；要装 1.1.1 只能换成
+  ACL Profile（`whale-dev-debug-full.p7b`，2026-11-08 到期、会「应用已过期」）或处理掉
+  `ACCESS_USER_FULL_DISK` 这条受限权限声明 —— 后者是产品决策，未擅自改。
+- 未签名包的产法（删签名块 + 全 STORED 重打包，与 `tools/build-dev-hap.sh` 第 2 步同款）：
+  `python3 -  whale-signed-1.1.1.hap whale-unsigned.hap` + 跳过 `META-INF` / `*signature*` 条目。
+
 ---
 
 ## 1. 当前目标
