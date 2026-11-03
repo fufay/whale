@@ -48,9 +48,10 @@
   `install failed due to grant request permissions failed. PermissionName: ohos.permission.ACCESS_USER_FULL_DISK`
   —— **同 versionCode 的覆盖安装能过**（对照实验：重装 d8c4583f 的 1.1.0 立即成功），
   说明升级路径会拿 Profile 的 ACL 校验受限权限，而本机默认用 365 天**无 ACL** Profile。
-  现状：设备上仍是 1.1.0（代码与发行包一致，仅版本号字段不同）；要装 1.1.1 只能换成
-  ACL Profile（`whale-dev-debug-full.p7b`，2026-11-08 到期、会「应用已过期」）或处理掉
-  `ACCESS_USER_FULL_DISK` 这条受限权限声明 —— 后者是产品决策，未擅自改。
+  现状：设备上仍是 1.1.0（代码与发行包一致，仅版本号字段不同）。
+  **决定（用户 2026-11-03）**：**下次更新新功能时**按「方案 2」处理 —— 删掉
+  `entry/src/main/module.json5` 里的 `ohos.permission.ACCESS_USER_FULL_DISK` 声明
+  （步骤/验收/回退见 `docs/125` §九、决策 `DECISIONS.md` D-023）；在那之前不要为纯热修去动权限面。
 - 未签名包的产法（删签名块 + 全 STORED 重打包，与 `tools/build-dev-hap.sh` 第 2 步同款）：
   `python3 -  whale-signed-1.1.1.hap whale-unsigned.hap` + 跳过 `META-INF` / `*signature*` 条目。
 

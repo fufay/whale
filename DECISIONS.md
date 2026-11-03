@@ -29,6 +29,8 @@
 | D-021 | 2026-10-29 | 迁移导入冲突口径：**系统/模型/UI/插件/工作区一律"保留当前"（alpha.2 默认）**；仅 `agent-loop`（8）与 `custom`（skills/prompts/agent-instructions）"使用备份"；旧插件清单不导入、改为按清单重装；sessions/附件不迁 | 新包需要 alpha.2 的新默认（V4.1-Flash、新 UI 配置、新 profile 插件集）；旧 provider/插件/工作区数据要么会覆盖新默认，要么引用不存在的包/会话。旧调优（并行度）和自定义提示/指令值得继承。`docs/129 §九`；`Backup/whale-backup/2026-10-28/插件清单-待新包装回.txt`；新 Whale 导入完成（无 sessions） |
 | D-022 | 2026-10-29 | Office 侧栏预览：**顶替宿主 `officeToPdf` 服务**（不认领后缀、不自渲染），转换引擎随 HAP 分发（Rust/Typst `liboffice2pdf_capi.so` + CMake NAPI 外壳 dlopen）；中文字体从系统取 `Noto Serif/Sans CJK`（OFL，不进包）；停用上游 `office-to-pdf` 与 `dshm-office-system-preview` 让位官方认领 | 目标是与官方预览完全对齐（同一 UI/缓存/PDF 渲染器）：只有替换服务能复用它；认领后缀会顶掉官方 OfficeBody 并换成 ArkWeb PDF 查看器观感，或让 WPS-only 插件抢回认领。字体必须落在 office2pdf 的替换链里，否则中文行叠行。`docs/130`；门禁 `check-office2pdf-wiring`（22 项）；真机 HAP `ce3f91e2…`、core `+whale.2`；回退见 `docs/130` §10 |
 
+| D-023 | 2026-11-03 | 待办·**下次更新新功能时**删掉 `ohos.permission.ACCESS_USER_FULL_DISK` 的 `requestPermissions` 声明（v1.1.1 因它无法从 1.1.0 升级安装） | 本机该权限无定义（`atm perm -g` → `does not exist`，带/不带 ACL 都是 `grantStatus=-1`），但 **`versionCode` 升级安装**会拿 Profile ACL 校验它而失败（同版本覆盖安装不校验，2026-11-03 对照实验）。它挡住「发新版就装得上」这条日常路径。推迟到下次功能更新：改权限面会影响新装用户的授权/可读范围，属产品改动，不塞进热修 | `entry/src/main/module.json5:112` + 对应 `perm_full_disk_reason` 字符串；`docs/125` §九（步骤/验收/回退）；`HANDOFF.md` §0.1 |
+
 ## 追加格式
 
 ```text
