@@ -71,7 +71,8 @@ const DEST = join(ROOT, 'entry', 'src', 'main', 'resources', 'resfile', 'resourc
 //   · dshm-yaml-check.js —— 严格 YAML 解析 / 原子写 / 备份（2026-10-24 卸载写坏 overlay
 //       事故的配套组件，安装器与启动期检查共用）。**漏掉它 ⇒ 卸载器 require 直接
 //       MODULE_NOT_FOUND**，表现为"卸载必失败"或（更糟）回退到不校验的旧路径。
-const FILES = ['main.js', 'tar-gz.cjs', 'jitless-env.cjs', 'worker-bootstrap.cjs', 'fetch-shim.js', 'undici-shim.mjs', 'undici-loader.mjs', 'require-builtin-shim.cjs', 'internal-undici-shim.cjs', 'dshm-installer.js', 'dshm-user-rows.js', 'dshm-yaml-check.js', 'dshm-profile-check.js', 'dshm-skills.js', 'dshm-compat.js', 'dshm-restore.js'];
+// 清单唯一真源：tools/lib/host-app-files.mjs（与本脚本一起被 assert-resfile-sync 引用）
+import { HOST_APP_FILES as FILES } from './lib/host-app-files.mjs';
 
 mkdirSync(DEST, { recursive: true });
 

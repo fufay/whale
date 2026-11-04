@@ -14,25 +14,8 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-// 与 place-host-app.mjs 的 FILES 保持同步（新增文件两处一起改）
-const FILES = [
-  'main.js',
-  'tar-gz.cjs',
-  'jitless-env.cjs',
-  'worker-bootstrap.cjs',
-  'fetch-shim.js',
-  'undici-shim.mjs',
-  'undici-loader.mjs',
-  'require-builtin-shim.cjs',
-  'internal-undici-shim.cjs',
-  'dshm-installer.js',
-  'dshm-user-rows.js',
-  'dshm-skills.js',
-  'dshm-restore.js',
-  'dshm-yaml-check.js',
-  'dshm-profile-check.js',
-  'dshm-compat.js',
-];
+// 清单唯一真源：tools/lib/host-app-files.mjs
+import { HOST_APP_FILES as FILES } from './lib/host-app-files.mjs';
 const SRC_DIR = join(ROOT, 'hostcore', 'app');
 const DST_DIR = join(ROOT, 'entry', 'src', 'main', 'resources', 'resfile', 'resources', 'app');
 

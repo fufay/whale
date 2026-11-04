@@ -37,6 +37,9 @@ const tarGz = require('./tar-gz.cjs');
 // 迁移期一次性恢复引导（2026-10-28，alpha.2 双包迁移；只在 dev 包自动跑，见文件头）。
 // 与 main.js 分开的理由同其它 dshm-*.js：main.js 不可 require，单测/独立 Host 也能直接调。
 const dshmRestore = require('./dshm-restore.js');
+// hdc 桥随包部署 + 启动自愈（2026-11-04，事故形态：桥修不回来 + 同步 hdc 调用冻死 Host）。
+// 见 hostcore/app/dshm-hdc-bridge.js 头部与 docs/133。
+const hdcBridge = require('./dshm-hdc-bridge.js');
 
 /**
  * 路径从哪来（**这一环不能靠环境变量**）
@@ -5071,6 +5074,15 @@ function ensureProfile() {
     }
     fs.copyFileSync(path.join(src, name), path.join(dest, name));
   }
+  // 【插件卫生（2026-11-04）】profile 里若残留 @deepseek-ai/dshm-* 的**安装副本**，会盖住核心树
+  // 里的同名自带插件（dsh loader 解析顺序 profile 优先）⇒ 核心树更新不生效。删掉后自动落回核心树。
+  // 真机实证：核心树已是 11 工具的新 screen-pilot，运行期却加载 9 工具旧副本。
+  try {
+    userRows.purgeShadowSeedPackages(dest, { log, diag });
+  } catch (shadowError) {
+    log('[插件卫生] 影子副本清理异常（非致命）：'
+      + (shadowError && shadowError.message ? shadowError.message : shadowError));
+  }
   userRows.composeUserRows(dest, { log, diag, profile: PROFILE, prevPatchText });
   // 【依赖预检（D27 根因第二落点）】profile package.json 的 dependencies 是
   // dsh loader 的 include 源（dsh-app-boot 的 resolveModuleFallbackEntries），
@@ -5234,6 +5246,23 @@ async function start() {
       + (restoreError && restoreError.message ? restoreError.message : restoreError));
   }
   stage('BOOT_30_PROFILE_READY', `home=${HOME_DIR} profile=${PROFILE}`);
+  /*
+   * 【hdc 桥随包部署 + 启动自愈（2026-11-04 事故）】
+   * 桥脚本随 HAP 内嵌（hdc-bridge-assets.js）→ 同步到 $HOME/.hdc-bridge/src →
+   * 只在"桥不健康"时后台跑一次 bridge.sh（detach + 超时看护，不阻塞启动）。
+   * 背景：重装/系统清 tmp 后桥 socket 消失 + 旧部署里写死的源码路径失效 ⇒ hdc 调用
+   * 卡在握手，而旧版 screen-pilot 同步 execFileSync 直接冻死事件循环、被系统杀进程。
+   * 详见 dshm-hdc-bridge.js 文件头。
+   */
+  try {
+    const bridgeReport = hdcBridge.ensureBridge({ homeDir: HOME_DIR, log, diag });
+    if (bridgeReport.needRepair) {
+      stage('BOOT_31_HDC_BRIDGE', `repair=${bridgeReport.reason} pid=${bridgeReport.pid}`);
+    }
+  } catch (bridgeError) {
+    diag('[hdc-bridge] 启动自愈异常（非致命）：'
+      + (bridgeError && bridgeError.message ? bridgeError.message : bridgeError));
+  }
 
   log('导入 ' + entry);
   const profileBoot = await import(pathToFileURL(entry).href);

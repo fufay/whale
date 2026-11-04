@@ -77,6 +77,27 @@
   让 agent 调一次 `ui_dump` / `screen_capture` / `ui_tap_text`，确认截图内容正确、点击落点正确
   （点击是真实操作，需用户在场）。
 
+
+## 0.3 最近一次（2026-11-04 下午）：hdc 桥 v3 + 随包部署（修「UI 自动化把应用冻死」）
+
+- 现象：新 Whale 里调任意 `ui_*`/`screen_*` 工具，整个应用卡死，Host 随后新 boot pid 重启；不调就稳。
+- 根因（`docs/133` 有完整取证）：重装 HAP 时系统杀掉桥子进程 + `$HOME/tmp` 被清 ⇒ 桥 socket 丢；
+  已部署 hdcb 里 `@BRIDGE_DIR@` 是旧源码路径（目录已搬走）⇒ 自愈必失败；hdcb 失败后仍盲 exec 真
+  hdc ⇒ 卡握手；旧版 screen-pilot `execFileSync` 同步调用 ⇒ Host 事件循环冻死 ≈78s，被系统杀进程。
+- 修复：`Common/dsh-hdc-bridge/bridge.sh` 升 v3（运行时解析桥目录 / repair 加锁 / **修完必须验证
+  否则 exit 3** / 探测套 timeout / 编译失败不拆桥 / repair.log / fakecred 路径从 `$HOME` 推导）；
+  桥脚本**随 HAP 分发**（`hostcore/app/dshm-hdc-bridge.js` + `tools/embed-hdc-bridge.mjs` 内嵌、
+  启动同步到 `$HOME/.hdc-bridge/src` 并后台重建，`tools/check-hdc-bridge-embed.mjs` 门禁带负控）；
+  `hostcore/app/dshm-user-rows.js` 新增 `purgeShadowSeedPackages`（清 profile 里 `@deepseek-ai/dshm-*`
+  旧副本，否则核心树新版插件永远不生效）。
+- `tools/lib/host-app-files.mjs`：Host 入口清单抽成唯一真源（原来两处各抄一份）。
+- 版本 **1.1.3 / 1010003**；发行候选 HAP `dist/release/whale-signed-1.1.3.hap` 396,494,163 B
+  sha `c2e8739a…`；本机同版本号覆盖版 `dist/signing/dev-profile/whale-dev-local-bridge.hap`
+  396,494,167 B sha `c7473b14…`，已 `hdc install -r` 成功（核心树仍是 `+whale.3` 未变）。
+- **待用户重启应用后验证**：`$HOME/.hdc-bridge/src/bridge.sh` 出现、`repair.log` 里 `repair done rc=0`、
+  `$HOME/tmp/hdcshim_hdc_server` 在、`bin/hdcb` 里是 `hdcb-v3-20261104`、Host 日志有
+  `[插件卫生] 清理…影子副本`；再让 agent 调一次 `ui_dump`/`screen_capture`：不卡死、工具数 11。
+
 ## 1. 当前目标
 
 - 当前阶段：**Node 升级 Phase 0 已完成**（v24.21.0 已接进 Whale，HAP 已出、**待用户装机冒烟 + 冷启动验证**，见 `docs/124`）。

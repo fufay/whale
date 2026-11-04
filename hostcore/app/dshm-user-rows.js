@@ -1129,6 +1129,52 @@ function quarantineAfterBootFailure(profileDir, homeDir, io) {
   iDiag(`【启动自愈】上次启动失败（${detail}）。${note}。本次以纯种子 profile 启动。`);
 }
 
+/**
+ * 删除 profile `node_modules/@deepseek-ai/dshm-*` 下的**影子插件副本**。
+ *
+ * 【为什么会有影子副本】`dshm-hilog` / `dshm-screen-pilot` 等最早是"profile 里独立安装的
+ * 插件"（见 pack-core 的 DSHM_PLUGIN_PACKAGES 注释），后来改成**随核心树自带**。
+ * 老用户 profile 里那份安装副本还在 `$DSH_HOME/profiles/<p>/node_modules/`，而 dsh loader
+ * 解析插件名时**profile 目录优先于核心树** ⇒ 运行时加载的是旧副本、核心树里的新版永远
+ * 不生效（真机实证 2026-11-04：核心树已是 11 工具的新 screen-pilot，Host 实际加载的是
+ * 9 工具的旧副本；用户看到的"更新了插件却没变化"就是这个）。
+ *
+ * 【为什么可以安全删除】这些包全部由核心树提供（随 HAP 分发），profile 侧那份只是历史残留：
+ * 删掉后解析自动落回核心树；用户数据（会话/配置）与插件本身无关。
+ *
+ * @param {string} profileDir profile 目录（含 node_modules）
+ * @param {{ log?: Function, diag?: Function }} [io]
+ * @returns {string[]} 被删掉的包名
+ */
+function purgeShadowSeedPackages(profileDir, io = {}) {
+  const { log = () => {}, diag = () => {} } = io;
+  const scopeDir = path.join(profileDir, 'node_modules', '@deepseek-ai');
+  let entries = [];
+  try {
+    entries = fs.readdirSync(scopeDir);
+  } catch {
+    return []; // 没有 scope 目录：干净 profile
+  }
+  const removed = [];
+  for (const name of entries) {
+    if (!name.startsWith('dshm-')) continue;
+    const dir = path.join(scopeDir, name);
+    try {
+      const st = fs.lstatSync(dir);
+      if (!st.isDirectory() && !st.isSymbolicLink()) continue;
+      fs.rmSync(dir, { recursive: true, force: true });
+      removed.push(name);
+    } catch (error) {
+      log(`[插件卫生] 删除影子副本失败 ${name}：${error && error.message ? error.message : error}`);
+    }
+  }
+  if (removed.length > 0) {
+    diag('[插件卫生] 清理 profile 里的自带插件影子副本（改由核心树提供）：' + removed.join('、'));
+    log('[插件卫生] 清理影子副本：' + removed.join('、'));
+  }
+  return removed;
+}
+
 module.exports = {
   USER_ROWS_FILENAME,
   migrateLegacyRowsName,
@@ -1150,6 +1196,7 @@ module.exports = {
   cleanupQuarantineResidue,
   writeBootFailMarker,
   quarantineAfterBootFailure,
+  purgeShadowSeedPackages,
   // 缺陷 4 的保留逻辑：导出供回归用例直接验证（防以后被静默改坏）
   carryForeignTopLevelEntries,
 };
