@@ -18,6 +18,41 @@ OUT="${1:-$REPO/dist/signing/dev-profile/whale-dev-latest-signed.hap}"
 mkdir -p "$(dirname "$OUT")"
 
 cd "$REPO"
+
+# 0) 【本机装机用】版本号临时覆盖（2026-11-04）
+#
+# 【为什么需要】本机的调试 Profile 是**无 ACL** 的（见 docs/125 §八），而 `hdc install -r` 在
+# **versionCode 升级**路径上会拿 Profile 的 ACL 校验受限权限（`ALLOW_EXTERNAL_NATIVE_CODE` /
+# `CUSTOM_SANDBOX` / `READ_WRITE_USER_FILE` …）⇒ 只要版本号比已装的大就必然
+# `grant request permissions failed`；**同 versionCode 的覆盖安装不走那道校验**（对照实验见
+# docs/125 §九）。所以本机自测一律用已装的 versionCode 出包：
+#
+#   WHALE_DEV_VERSIONCODE=1010000 sh tools/build-dev-hap.sh   # versionName 照旧
+#
+# 只临时改 `AppScope/app.json5`，构建结束（含失败）立刻还原 —— 仓库里始终是"下一个正式版本"。
+APP_JSON5="$REPO/AppScope/app.json5"
+APP_JSON5_BAK=""
+restore_app_json5() {
+  if [ -n "$APP_JSON5_BAK" ] && [ -f "$APP_JSON5_BAK" ]; then
+    cp -f "$APP_JSON5_BAK" "$APP_JSON5"
+    rm -f "$APP_JSON5_BAK"
+  fi
+}
+if [ -n "${WHALE_DEV_VERSIONCODE:-}" ] || [ -n "${WHALE_DEV_VERSIONNAME:-}" ]; then
+  APP_JSON5_BAK="$(mktemp)"
+  cp -f "$APP_JSON5" "$APP_JSON5_BAK"
+  trap restore_app_json5 EXIT INT TERM
+  "$NODE_BIN" - "$APP_JSON5" "${WHALE_DEV_VERSIONCODE:-}" "${WHALE_DEV_VERSIONNAME:-}" <<'JS'
+const fs = require('node:fs');
+const [file, code, name] = process.argv.slice(2);
+let t = fs.readFileSync(file, 'utf8');
+if (code) t = t.replace(/"versionCode":\s*\d+/, `"versionCode": ${Number(code)}`);
+if (name) t = t.replace(/"versionName":\s*"[^"]*"/, `"versionName": "${name}"`);
+fs.writeFileSync(file, t);
+console.log(`[build-dev-hap] 版本号临时覆盖：versionCode=${code || '(不变)'} versionName=${name || '(不变)'}`);
+JS
+fi
+
 # 1) 构建（先删旧产物，避免"构建失败却静默用上一次的 HAP"——2026-10-28 踩过：
 #    旧脚本把 "node cli.js" 当整条命令名，构建其实没跑，结果把 rc.2 旧核打进了 alpha.2 调试包）
 OUT_DIR="$REPO/entry/build/default/outputs/default"

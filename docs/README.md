@@ -148,6 +148,7 @@
 - `129-alpha2-数据迁移（备份恢复）.md` —— 2026-10-28：whale-backup 2026-10-28 → 新 Whale 的沙箱层恢复（Host 启动一次性 `dshm-restore`，1.2s；附件 725/138.7MB、state 413、AGENTS/凭据）；ZIP 由 dsh-config-manager 用户恢复（顺序：先 Host 恢复，后 ZIP）。
 - `130-Office预览走office2pdf（HAP内置引擎）.md` —— 2026-10-29：Office 预览与官方对齐（官方 UI + HAP 内置 Rust/Typst 引擎顶替 `officeToPdf` 服务）；含 6 个接点/字体链/白名单/回退/门禁 `check-office2pdf-wiring`（22 项）；真机 HAP `ce3f91e2…`、core `+whale.2`。
 - `131-聊天/侧栏网页里的链接不再弹外部浏览器确认框.md` —— 2026-11-03：同一处壳垫片连修三件「壳的外链兜底多管了一手」。①聊天点链接：上游锚点 onClick 自己 `preventDefault` 后开侧栏，壳在**捕获阶段**又投 `confirm` ⇒ 双开；改冒泡 + `if (ev.defaultPrevented) return` + confirm 1.5s 去重。②侧栏浏览器（应用自己开的 iframe）里点「弹新窗」的链接（B 站视频）：端侧 `multiWindowAccess=false` 弹不出真窗 ⇒ 旧逻辑掉到 confirm；改为子框架内**当前 tab 自跳转**。③自跳转把 B 站页面变成无限刷新（防 iframe 脚本 `window.open(location.href)` 自我循环，真机日志 ~250ms/轮同一 URL）：加**同址不跳** + **1.5s 真实手势**两道闸。垫片断言（顶栏 5 / 子框架 9）全 PASS、旧代码负控 3 项 FAIL；HAP `d8c4583f…`（396,448,917 B）已覆盖安装。坑：模板串内注释禁反引号。
+- `132-screen-pilot性能优化（异步hdc快通道JPEG整屏组合工具）.md` —— 2026-11-04：内置 `dshm-screen-pilot` 换性能版（全异步 hdc 直连快通道、合并 hdc 往返、IHDR/SOF 直读 + 原地反滤波、整屏 JPEG、uitest 串行化、新增 `ui_tap_text`/`ui_wait_text`，单次 0.4–1.1s、较旧版 −27%~−76%）。并入出包：`coreVersion 0.2.2-alpha.2+whale.3`；**依赖树零漂移**（用 +whale.2 的 lock 做 `npm ci`，636 包版本差异 0）；核心 zip 109,170,367 B sha `404d478e…`，与 +whale.2 产物 diff 仅 7 个文件；HAP 396,457,103 B sha `61bac660…`（1.1.2/1010002），本机同 versionCode 覆盖版已装机。附「为什么包名是 dshm-」的机制说明。
 
 其它调研材料（官方桌面端 README、上游协议包文档副本、社区工程浅克隆等）按需放在同一目录即可，不入库。
 

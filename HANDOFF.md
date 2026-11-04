@@ -57,6 +57,26 @@
 
 ---
 
+
+## 0.2 最近一次（2026-11-04）：screen-pilot 性能版并入核心树
+
+- 来源：`Common/dsh-screen-pilot/`（源码唯一真源，HANDOFF §3 交接）→ 7 个 `lib/*.js` 逐字节覆盖到
+  `hostcore/plugins/dshm-screen-pilot/lib/`（包名保持 `@deepseek-ai/dshm-screen-pilot`）。
+- `coreVersion`：`0.2.2-alpha.2+whale.2` → **`+whale.3`**；`pack-core --skip-install --place-in-app`
+  产出核心 zip **109,170,367 B** sha256 `404d478e…`（46,269 条目，与 +whale.2 相同）；
+  与 +whale.2 产物**逐项 diff 只有 7 个文件**（6 个插件 lib + package-lock）。
+- **依赖树零漂移**：裸 `npm install` 会拉到 31 个更新的上游预发布版（含 `@deepseek-ai/cordis`），
+  正确做法是复制 +whale.2 的 `package-lock.json`（只改根依赖版本串）后 `npm ci` —— 636 包版本差异 0。
+- HAP：正式号 **1.1.2 / 1010002**（396,457,103 B sha `61bac660…`）；本机自测用
+  `WHALE_DEV_VERSIONCODE=1010000` 覆盖出包（396,457,107 B sha `27844877…`）并已覆盖安装成功。
+- 本机装机口径变化：调试 Profile 无 ACL ⇒ **versionCode 升级安装必被权限校验挡住**（试过删
+  `ACCESS_USER_FULL_DISK`，下一个报 `ALLOW_EXTERNAL_NATIVE_CODE`，删不得）⇒ 自测一律同 versionCode
+  覆盖；对外发版需正式签名（见 `docs/125` §9.4、DECISIONS D-023 的 11-04 更正）。
+- 文档：`docs/132`（性能优化 + 出包/核验 + 「为什么包名是 dshm-」的机制说明）。
+- **待用户冒烟**：重启 WhaleX（会自动解包 `dshm/cores/0.2.2-alpha.2+whale.3`，1–3 分钟）后，
+  让 agent 调一次 `ui_dump` / `screen_capture` / `ui_tap_text`，确认截图内容正确、点击落点正确
+  （点击是真实操作，需用户在场）。
+
 ## 1. 当前目标
 
 - 当前阶段：**Node 升级 Phase 0 已完成**（v24.21.0 已接进 Whale，HAP 已出、**待用户装机冒烟 + 冷启动验证**，见 `docs/124`）。
