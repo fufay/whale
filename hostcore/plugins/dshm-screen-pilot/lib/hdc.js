@@ -70,18 +70,54 @@ async function execOn(tr, args, timeout) {
   }
 }
 
-async function probeFast() {
-  const fast = fastTransport();
-  if (!fast) throw new Error('没有可用的 fast 通道（缺少 real.path / shim.so）');
-  // 只做一次「有没有可连目标」的短探测；不带 -t（此时还不知道目标）。
+/** 读上次成功的端口（hdcb 会写；无线调试换端口时由 hdcb 负责更新）。 */
+function cachedPort() {
+  try {
+    const raw = readFileSync(join(BRIDGE_DIR, 'port.cache'), 'utf8');
+    return String(raw).trim().split(/\s+/)[0] || '';
+  } catch {
+    return '';
+  }
+}
+
+/** 有界重连：用缓存端口做一次 tconn（≤2.5s）。失败静默，交给上层决定。 */
+async function reconnectOnce(fast) {
+  const port = cachedPort();
+  if (!port) return;
+  try {
+    await execFileAsync(fast.bin, ['tconn', `127.0.0.1:${port}`], {
+      encoding: 'utf8',
+      timeout: 2500,
+      maxBuffer: 1024 * 1024,
+      env: fast.env,
+    });
+  } catch {
+    /* 连不上就算了：调用方会回退桥壳（hdcb 有界失败） */
+  }
+}
+
+async function listFirstTarget(fast, timeout) {
   const { stdout } = await execFileAsync(fast.bin, ['list', 'targets'], {
     encoding: 'utf8',
-    timeout: 2500,
+    timeout,
     maxBuffer: 1024 * 1024,
     env: fast.env,
   });
-  const target = String(stdout).trim().split(/\r?\n/).map((s) => s.trim()).filter(Boolean)[0];
-  if (!target) throw new Error('fast 通道没有可用目标');
+  return String(stdout).trim().split(/\r?\n/).map((s) => s.trim()).filter(Boolean)[0] || '';
+}
+
+async function probeFast() {
+  const fast = fastTransport();
+  if (!fast) throw new Error('没有可用的 fast 通道（缺少 real.path / shim.so）');
+  // 短探测（不带 -t，此时还不知道目标）；没有目标就先做一次有界 tconn 再探一次。
+  // 背景：无线调试端口每次开机/换网都会变，server 换实例后 tconn 状态会丢——与其回退到
+  // 会扫描的桥壳，不如在这里用缓存端口快速重连一次（hdcb 负责把端口刷新进 port.cache）。
+  let target = await listFirstTarget(fast, 2500);
+  if (!target) {
+    await reconnectOnce(fast);
+    target = await listFirstTarget(fast, 2000);
+  }
+  if (!target) throw new Error('fast 通道没有可用目标（已做一次有界 tconn）');
   fast.target = target;
   return fast;
 }

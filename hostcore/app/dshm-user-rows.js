@@ -1148,29 +1148,63 @@ function quarantineAfterBootFailure(profileDir, homeDir, io) {
  */
 function purgeShadowSeedPackages(profileDir, io = {}) {
   const { log = () => {}, diag = () => {} } = io;
-  const scopeDir = path.join(profileDir, 'node_modules', '@deepseek-ai');
-  let entries = [];
-  try {
-    entries = fs.readdirSync(scopeDir);
-  } catch {
-    return []; // 没有 scope 目录：干净 profile
-  }
+  /*
+   * 两类残留都要清：
+   *  · `@deepseek-ai/dshm-*`：改成"随核心树自带"之后，profile 里那份安装副本；
+   *  · 无 scope 的历史名（`dsh-screen-pilot` / `dsh-hilog`）：这两个最初是 profile 独立插件，
+   *    安装名就是源码包名（无 scope）。老 profile 里可能还留着它们，而**用户行/旧 patch**
+   *    可能直接按这个名字引用 ⇒ 运行期加载的仍是旧代码（真机实证：核心树 11 工具新版
+   *    在跑，插件工具数却是 9）。
+   */
+  const LEGACY_UNSCOPED = ['dsh-screen-pilot', 'dsh-hilog'];
+  const nmDir = path.join(profileDir, 'node_modules');
   const removed = [];
-  for (const name of entries) {
-    if (!name.startsWith('dshm-')) continue;
-    const dir = path.join(scopeDir, name);
+  let scanned = 0;
+  const kill = (dir, label) => {
     try {
-      const st = fs.lstatSync(dir);
-      if (!st.isDirectory() && !st.isSymbolicLink()) continue;
       fs.rmSync(dir, { recursive: true, force: true });
-      removed.push(name);
+      removed.push(label);
     } catch (error) {
-      log(`[插件卫生] 删除影子副本失败 ${name}：${error && error.message ? error.message : error}`);
+      log(`[插件卫生] 删除影子副本失败 ${label}：${error && error.message ? error.message : error}`);
     }
+  };
+
+  // ① scope 下的 dshm-*
+  const scopeDir = path.join(nmDir, '@deepseek-ai');
+  try {
+    for (const name of fs.readdirSync(scopeDir)) {
+      if (!name.startsWith('dshm-')) continue;
+      scanned += 1;
+      const dir = path.join(scopeDir, name);
+      try {
+        const st = fs.lstatSync(dir);
+        if (!st.isDirectory() && !st.isSymbolicLink()) continue;
+        kill(dir, '@deepseek-ai/' + name);
+      } catch {
+        /* 竞态：已不在 */
+      }
+    }
+  } catch {
+    /* 没有 scope 目录：正常 */
   }
+
+  // ② 无 scope 的历史名
+  try {
+    for (const name of fs.readdirSync(nmDir)) {
+      if (!LEGACY_UNSCOPED.includes(name)) continue;
+      scanned += 1;
+      kill(path.join(nmDir, name), name);
+    }
+  } catch {
+    /* 没有 node_modules：干净 profile */
+  }
+
   if (removed.length > 0) {
     diag('[插件卫生] 清理 profile 里的自带插件影子副本（改由核心树提供）：' + removed.join('、'));
     log('[插件卫生] 清理影子副本：' + removed.join('、'));
+  } else {
+    // 留一行"扫过但没发现"的读数：下次排查时不必再猜是不是根本没跑
+    diag(`[插件卫生] profile 里未发现自带插件副本（候选扫描 ${scanned} 项）`);
   }
   return removed;
 }

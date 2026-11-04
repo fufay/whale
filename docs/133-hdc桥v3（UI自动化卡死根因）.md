@@ -102,3 +102,31 @@
 - 插件影子清理：`git revert` 该提交（清理只删 profile 里的副本，不删用户数据；被删的包由
   核心树提供，回滚后下次启动会从旧位置再装回来——若真需要）。
 - HAP：同 versionCode 覆盖安装回 `whale-dev-local-sp.hap`（上一版）。
+
+## 九、2026-11-04 二次排查：两个真正的"卡死"根因（hdcb v5）
+
+### 9.1 启动期 detached spawn 破坏宿主的子进程回收（已修）
+
+- **现象**：会话里任何命令（`echo` / `python3`）永远不返回；`timeoutMs=8000` 也不回；点"终止执行"
+  28 次全部 200（`/api/session/cancel`）却毫无效果；`/tmp` 探针在 WhaleX 里根本读不到。
+- **证据**：`bridge.sh` 子进程在 `20:03:48` 已退出（`/proc/<pid>/stat` 状态 `Z`），宿主直到
+  `20:06:05` 才打印 `[hdc-bridge] bridge.sh 超时 180000ms，已 SIGKILL pid=...`；重启后**第一代依旧**。
+- **根因**：`hostcore/app/dshm-hdc-bridge.js` 在 BOOT 阶段
+  `spawn('/system/bin/sh',[bridge.sh],{detached:true})`。该 detached spawn 之后，宿主再也收不到
+  子进程退出通知 ⇒ 工具调用永久悬挂、超时收尾也等不到 exit、终止无从下手。
+- **修复**：启动期不再 spawn（部署只做纯文件同步），桥修复延迟到首次使用（`hdcb`）；
+  `DSHM_HDC_BRIDGE_REPAIR=1` 可恢复旧行为（仅调试用）。
+
+### 9.2 「注入被丢」是误判；真问题是端口发现把 90s 耗尽（hdcb v5 修）
+
+- **实测排除**：app 上下文 `LD_PRELOAD=shim /system/bin/sh` → `maps=4`；`hdc -m` 进程里也 `maps=4`。
+  所以不是 ACL、不是 Node 版本、不是 secure-exec，"注入失效"这个前提是错的（此前一轮结论作废）。
+- **真问题**：无线调试端口每次开机/换网都会变；旧 `hdcb` 的「自检 → 发现 → 全端口扫描」在判不出
+  Connected 时按 5s/步推进，直接顶穿插件的 90s 超时（`spawnSync ETIMEDOUT`）。
+- **v5 修法**：`persist.hdc.port` 在 app 侧可读（`param get` 实测可用）⇒ **每次现读** + 一次 `tconn`；
+  读不到才做**一次**约 3s 的 `scanports` 兜底（候选逐个 tconn）；仍失败 `exit 3`。
+  **不重启 server、不循环自愈、不扫描为常态**（避免残留 `hdc -m`）。
+- **插件侧**：fast 探测失败时用缓存端口做一次 ≤2.5s 的 `tconn` 再探，不行才回退 hdcb（hdcb 现在有界）。
+- **改动位置**：`Common/dsh-hdc-bridge/bridge.sh`（hdcb/hdc 模板 v5）+
+  `hostcore/app/hdc-bridge-assets.js`（`tools/embed-hdc-bridge.mjs` 重新生成，gate 通过）+
+  `hostcore/plugins/dshm-screen-pilot/lib/hdc.js`。

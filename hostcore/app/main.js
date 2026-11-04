@@ -5255,7 +5255,34 @@ async function start() {
    * 详见 dshm-hdc-bridge.js 文件头。
    */
   try {
-    const bridgeReport = hdcBridge.ensureBridge({ homeDir: HOME_DIR, log, diag });
+    /*
+     * 【homeDir 必须是 USER_DATA，不是 HOME_DIR】桥脚本里的 `$HOME` 是应用 files 目录；
+     * `HOME_DIR` 是 dsh 的 `$DSH_HOME`（`$HOME/dsh/home`）。第一版传错位置，症状是
+     * "日志说部署成功、设备上却找不到 .hdc-bridge/src"（2026-11-04 真机）。
+     * cleanupDirs 把那一版误写到 `$DSH_HOME/.hdc-bridge` 的残留清掉。
+     */
+    /*
+     * 应用 files 目录（= 桥脚本里的 `$HOME`）的三个来源，按可靠度排序：
+     *   ① `process.env.HOME`：native 起 Node 时设的，就是 files 目录（插件取 `bin/hdc` 也靠它）；
+     *   ② `DSHM_HOME` 去掉尾部 `/dsh/home`（本机实测 native 传的是 `$HOME/dsh/home`）；
+     *   ③ `USER_DATA`（Electron 才有；本环境为空，别指望）。
+     */
+    const appHomeDir = (() => {
+      const envHome = process.env.HOME || '';
+      if (envHome && path.isAbsolute(envHome)) return envHome;
+      const suffix = path.join('dsh', 'home');
+      if (HOME_DIR && path.isAbsolute(HOME_DIR) && HOME_DIR.endsWith(suffix)) {
+        return HOME_DIR.slice(0, HOME_DIR.length - suffix.length - 1) || '/';
+      }
+      if (USER_DATA && path.isAbsolute(USER_DATA)) return USER_DATA;
+      return '';
+    })();
+    const bridgeReport = hdcBridge.ensureBridge({
+      homeDir: appHomeDir,
+      cleanupDirs: HOME_DIR && HOME_DIR !== appHomeDir ? [path.join(HOME_DIR, '.hdc-bridge')] : [],
+      log,
+      diag,
+    });
     if (bridgeReport.needRepair) {
       stage('BOOT_31_HDC_BRIDGE', `repair=${bridgeReport.reason} pid=${bridgeReport.pid}`);
     }

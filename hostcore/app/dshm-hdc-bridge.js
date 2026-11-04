@@ -31,6 +31,13 @@
  *   ④ `$HOME/.hdc-bridge/real.path` 不存在（还没探测过真 hdc）。
  * 一个都不满足 ⇒ 桥健康，什么都不做（每次启动零成本）。
  *
+ * ════════ 【HOME 口径】════════
+ * 桥脚本里的 `$HOME` 是**应用 files 目录**（`USER_DATA`），不是 dsh 的 `$DSH_HOME`
+ * （= `$HOME/dsh/home`）。2026-11-04 第一版把 `HOME_DIR`（dsh home）当成了 `homeDir`，
+ * 结果资产落到了 `$DSH_HOME/.hdc-bridge/src`、hdcb 也写到了 `$DSH_HOME/bin/`，
+ * 真正的 `$HOME/.hdc-bridge` 什么都没变 —— 症状是"日志说部署成功，设备上找不到文件"。
+ * 现在由调用方显式传 `homeDir`（= USER_DATA），并把误写的目录放进 `cleanupDirs` 清掉。
+ *
  * ════════ 安全边界 ════════
  *   · 只写自己沙箱（`$HOME`）内的文件；`keys/` 私钥**不随包**（已在设备 `.harmony/`）；
  *   · 全程 detach + 超时（默认 180s 后 kill），失败只落 diag/log，绝不影响 Host 启动；
@@ -77,17 +84,39 @@ function syncAssets(srcDir) {
 
 /**
  * 部署/自愈 hdc 桥（**同步部分**只做文件同步与判据；真正的重建在后台跑）。
- * @param {{ homeDir: string, log: (m: string) => void, diag: (m: string) => void }} options
+ * @param {{ homeDir: string, log: (m: string) => void, diag: (m: string) => void, cleanupDirs?: string[] }} options
+ *   homeDir 必须是**应用 files 目录**（脚本里的 `$HOME`），不是 dsh 的 `$DSH_HOME`。
  * @returns {{ deployed: boolean, changed: number, needRepair: boolean, reason: string, pid?: number }}
  */
 function ensureBridge(options) {
-  const { homeDir, log, diag } = options;
+  const { homeDir, log, diag, cleanupDirs = [] } = options;
   const result = { deployed: false, changed: 0, needRepair: false, reason: '' };
   if (String(process.env.DSHM_HDC_BRIDGE || '1') === '0') {
     result.reason = 'disabled-by-env';
     return result;
   }
   try {
+    /*
+     * 【护栏】homeDir 必须是**绝对路径**：2026-11-04 第二版传进来的 USER_DATA 实际为空
+     * （`electron.app.getPath('userData')` 在本环境拿不到）⇒ `path.join('', '.hdc-bridge')`
+     * 变成相对路径 ⇒ 在 cwd 里 mkdir 报 EACCES，日志看起来像"部署失败"但真因是参数错。
+     * 这类错误必须在入口拒绝，而不是写到一个猜出来的目录。
+     */
+    if (!homeDir || !path.isAbsolute(homeDir)) {
+      diag(`[hdc-bridge] 跳过：homeDir 不是绝对路径（收到 ${JSON.stringify(homeDir)}）`);
+      result.reason = 'bad-home-dir';
+      return result;
+    }
+    // 清掉历史误写位置（例如把 dsh home 当成 $HOME 的那一版）
+    for (const stray of cleanupDirs) {
+      if (!stray || !fs.existsSync(stray)) continue;
+      try {
+        fs.rmSync(stray, { recursive: true, force: true });
+        diag(`[hdc-bridge] 清理误写目录：${stray}`);
+      } catch (error) {
+        diag(`[hdc-bridge] 清理误写目录失败 ${stray}：${error && error.message ? error.message : error}`);
+      }
+    }
     const bridgeDir = path.join(homeDir, '.hdc-bridge');
     const srcDir = path.join(bridgeDir, SRC_DIRNAME);
     result.changed = syncAssets(srcDir);
@@ -114,6 +143,18 @@ function ensureBridge(options) {
     }
     result.needRepair = true;
 
+    // 【2026-11-04 实验】启动阶段默认不再 spawn 桥修复。
+    //   症状（真机实测）：宿主的子进程退出通知整体失效 —— bridge.sh 早已退出，宿主 180s 后
+    //   仍在"杀"它，子进程一直躺成僵尸；会话里任何命令（echo/python）都永久挂起，连 8s 超时
+    //   也不返回。当天唯一新增的 spawn 就是这条 boot 阶段 detached spawn。
+    //   默认改为延迟：首次使用 hdc 时由 hdcb 触发修复；DSHM_HDC_BRIDGE_REPAIR=1 恢复启动修复。
+    if (String(process.env.DSHM_HDC_BRIDGE_REPAIR || '0') !== '1') {
+      diag(`[hdc-bridge] 跳过启动修复（${result.reason}；延迟到首次使用）`);
+      log(`[hdc-bridge] 部署完成，跳过启动修复（${result.reason}）；首次用 hdc 时由 hdcb 修复`);
+      result.deferred = true;
+      return result;
+    }
+
     // 重建：detached + 输出落文件，Host 不等它。
     const logPath = path.join(bridgeDir, 'bridge.log');
     const out = fs.openSync(logPath, 'a');
@@ -127,7 +168,7 @@ function ensureBridge(options) {
     child.unref();
     fs.closeSync(out);
     result.pid = child.pid;
-    diag(`[hdc-bridge] 部署完成（${result.reason}），后台重建 bridge.sh pid=${child.pid}`);
+    diag(`[hdc-bridge] 部署完成（home=${homeDir}；${result.reason}），后台重建 bridge.sh pid=${child.pid}`);
     log(`[hdc-bridge] 部署完成（${result.reason}），后台重建 bridge.sh pid=${child.pid}（日志 .hdc-bridge/bridge.log）`);
 
     // 看护：超时就杀（timer unref，不拖住 Host 退出）

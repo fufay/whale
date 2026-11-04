@@ -9,6 +9,19 @@
 **核心树口径**：以 `hostcore/core-recipe.json` 为准，当前读数 `0.2.2-alpha.2+whale.2`（本轮未动核心树，只改了 `entry/` ArkTS）
 **签名口径**：开发包默认用 365 天无 ACL 调试 Profile（`dist/signing/dev-profile/whale-dev-debug.p7b`，见 `docs/125` §八）
 
+## 0. 最近一次（2026-11-04）：UI 自动化卡死 → 两处根因已修（hdcb v5）
+
+- ① **启动期 detached spawn 破坏宿主子进程回收**：会话里任何命令永不返回、8s 超时不回、终止无效；
+  证据是子进程 `Z` 僵尸 + 宿主 180s 后才"杀"它。已改为启动期不 spawn（只同步文件），修复延迟到首次用 hdc。
+- ② **hdcb 端口发现把 90s 耗尽**：无线调试端口每次开机/换网都变，旧逻辑进入全端口扫描。
+  v5 改成"`persist.hdc.port` 每次现读 + 一次 tconn；读不到才做一次 ~3s 有界扫描；仍失败 exit 3"，
+  不重启 server、不循环自愈。插件 fast 通道失败时先用缓存端口做一次 ≤2.5s tconn。
+- 源码：`Common/dsh-hdc-bridge/bridge.sh`（模板 v5）、`hostcore/app/hdc-bridge-assets.js`（embed 重生成）、
+  `hostcore/plugins/dshm-screen-pilot/lib/hdc.js`、`hostcore/app/dshm-hdc-bridge.js`（boot 不再 spawn）。
+- 设备：`$HOME/bin/hdcb`（v5）+ `port.cache` 已部署；WhaleX 里 `screen_size` 已验证可用。
+- 未做：正式包（只影响"以后新装/别人装默认生效"）；旧 `hdc -m` 残留清理。
+- 细节：`docs/133` §九。
+
 ## 0. 最近一次（2026-11-03）：链接外开兜底收窄（两处）
 
 - ① 聊天里点链接：侧栏已打开、还弹「打开外部浏览器？」——上游锚点 onClick 自己
