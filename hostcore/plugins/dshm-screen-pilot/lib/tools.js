@@ -9,6 +9,7 @@ import { mkdirSync } from 'node:fs';
 import { capture, listWindows, screenSize } from './screen.js';
 import { dumpLayout, findElements, findInDump, cachedDump } from './layout.js';
 import { click, swipe, key, typeText } from './input.js';
+import { closeSession, openSession, sessionStatus } from './hdc.js';
 
 function ensureDir(dir) {
   mkdirSync(dir, { recursive: true });
@@ -352,6 +353,52 @@ export function registerTools(toolsSvc, config = {}) {
     },
     async execute(args) {
       return typeText(args.text, { x: args.x, y: args.y, displayId: args.displayId });
+    },
+  });
+
+  register({
+    name: 'ui_session_open',
+    description:
+      '打开 UI 自动化长连会话（PTY 常驻 hdc shell，后续 UI 工具命令 ~40ms/条，而非每次 ~200ms）。通常不需要手动调用：第一次 UI 工具调用会自动懒开；空闲 60s 自动关闭。显式打开可设置 idleTimeoutMs。返回会话状态。',
+    parameters: objectSchema({
+      idleTimeoutMs: {
+        type: 'number',
+        description: '空闲自动关闭毫秒数；缺省 60000，传 0 表示不自动关闭（需手动 ui_session_close）',
+      },
+    }),
+    output: {
+      schema: { description: '{state, degraded, pid, openedAt, idleTimeoutMs, lastCommandMs, stats}' },
+      render: jsonRender,
+    },
+    async execute(args) {
+      return openSession({ idleTimeoutMs: Number.isFinite(args.idleTimeoutMs) ? args.idleTimeoutMs : undefined });
+    },
+  });
+
+  register({
+    name: 'ui_session_close',
+    description: '关闭 UI 自动化长连会话，释放常驻的 hdc shell 进程。任务做完/不再需要自动化时调用。',
+    parameters: objectSchema({}),
+    output: {
+      schema: { description: '{state, degraded, stats}' },
+      render: jsonRender,
+    },
+    async execute() {
+      await closeSession('tool');
+      return sessionStatus();
+    },
+  });
+
+  register({
+    name: 'ui_session_status',
+    description: '查询 UI 自动化长连会话状态（是否打开、是否降级、会话 pid、最近一条命令耗时、打开/关闭/重建计数）。',
+    parameters: objectSchema({}),
+    output: {
+      schema: { description: '{state, degraded, terminalAvailable, pid, openedAt, lastCommandMs, stats, lastError}' },
+      render: jsonRender,
+    },
+    async execute() {
+      return sessionStatus();
     },
   });
 

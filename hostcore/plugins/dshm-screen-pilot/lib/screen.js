@@ -71,7 +71,7 @@ export function parseWindows(text) {
 
 /** 列出全部窗口（含 z 序与焦点）。 */
 export async function listWindows() {
-  const out = await shell('hidumper -s WindowManagerService -a -a');
+  const out = await shell('hidumper -s WindowManagerService -a -a', { retries: 1 });
   const { rows, focus } = parseWindows(out);
   return { windows: rows, focus };
 }
@@ -123,9 +123,9 @@ function resolveLocal(outPath, saveDir, dir, fmt) {
 async function captureJpeg(displayId, local) {
   const remote = remotePath('jpeg');
   try {
-    const out = await shell(`snapshot_display -i ${Number(displayId) || 0} -f ${remote}`);
+    const out = await shell(`snapshot_display -i ${Number(displayId) || 0} -f ${remote}`, { retries: 1 });
     if (!/success/i.test(out)) throw new Error('snapshot_display 未成功: ' + String(out).trim().slice(0, 300));
-    await fileRecv(remote, local);
+    await fileRecv(remote, local, { retries: 1 });
   } finally {
     queueCleanup(remote);
   }
@@ -146,7 +146,7 @@ async function capturePngFull(displayId, local) {
       if (!/No Error|saved/i.test(o)) throw new Error('screenCap 失败: ' + String(o).trim());
       return o;
     });
-    await fileRecv(remote, local);
+    await fileRecv(remote, local, { retries: 1 });
   } finally {
     queueCleanup(remote);
   }
@@ -208,7 +208,7 @@ export async function capture({ displayId, window: win, region, outPath, saveDir
       if (!hit) throw new Error('未找到窗口: ' + win);
       return hit;
     });
-    await fileRecv(remote, local);
+    await fileRecv(remote, local, { retries: 1 });
     const src = readFileSync(local);
     const box = w
       ? { x: w.x, y: w.y, w: w.w, h: w.h }

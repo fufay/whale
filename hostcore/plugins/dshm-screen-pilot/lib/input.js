@@ -1,9 +1,23 @@
 // 输入注入引擎：uitest uiInput（绝对坐标点击/滑动/按键/文本）。
 // 全部改为异步 hdc 调用：等待注入结果期间不阻塞 Host 事件循环（GUI/其它会话不受影响）。
-import { shellArgs } from './hdc.js';
+//
+// 2026-11-05（审计 P1-5）：长连走 PTY 后，命令里的裸换行/控制字符会被设备终端行规程解释
+// （截断命令、SIGINT、VEOF…），所以文本输入改为 base64 落设备临时文件再传参，
+// 让 PTY 只看到单行 ASCII；其余注入命令本来就是单行可打印文本。
+import { randomBytes } from 'node:crypto';
+import { deviceCommand, shellArgs, shellArgsWith } from './hdc.js';
+
+function assertNoControlChars(args) {
+  for (const a of args) {
+    if (/[\x00-\x1f\x7f]/.test(String(a))) {
+      throw new Error('输入注入参数含控制字符（换行/制表等），已拒绝；文本请用 ui_type 的 base64 通道');
+    }
+  }
+}
 
 async function run(args) {
-  const out = await shellArgs(...args);
+  assertNoControlChars(args);
+  const out = await shellArgsWith(args, {});
   const ok = /No Error/i.test(out) && !/^\[\w*Error/i.test(out.trim());
   if (!ok) {
     const err = new Error('输入注入失败: ' + out.trim());
@@ -50,13 +64,32 @@ export async function key(key, { combo = [], displayId } = {}) {
 
 /**
  * 文本输入：给 x,y 用 inputText（先点坐标再输入），否则 text（当前焦点处输入）。
+ * 文本先 base64 写到设备临时文件，再把文件内容作为参数传给 uitest，
+ * 避免 \n/\r/\x03/\x04 等字节被 PTY 行规程解释（审计 P1-5）。
  * ⚠ 文本会经过系统输入法：若拼音输入法激活，英文字母可能被转换为中文候选。
  */
 export async function typeText(text, { x, y, displayId } = {}) {
-  const args =
+  const value = String(text);
+  if (/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(value)) {
+    throw new Error('ui_type 文本含不可注入的控制字符（仅支持普通文本/换行）');
+  }
+  const b64 = Buffer.from(value, 'utf8').toString('base64');
+  const remote = '/data/local/tmp/sp_type_' + randomBytes(4).toString('hex') + '.txt';
+  const prefix = `printf %s '${b64}' | base64 -d > ${remote};`;
+  const sub =
     x != null && y != null
-      ? ['uitest', 'uiInput', 'inputText', String(x), String(y), String(text)]
-      : ['uitest', 'uiInput', 'text', String(text)];
-  if (displayId != null) args.push(String(displayId));
-  return { ok: true, action: x != null ? 'inputText' : 'text', text, output: await run(args) };
+      ? `uitest uiInput inputText ${Number(x)} ${Number(y)} "$(cat ${remote})"`
+      : `uitest uiInput text "$(cat ${remote})"`;
+  const suffix = displayId != null ? ` ${Number(displayId)}` : '';
+  const cmd = `${prefix} ${sub}${suffix}; rm -f ${remote}`;
+  const out = await deviceCommand(cmd);
+  const ok = /No Error/i.test(out) && !/^\[\w*Error/i.test(out.trim());
+  if (!ok) {
+    const err = new Error('输入注入失败: ' + out.trim());
+    err.output = out;
+    throw err;
+  }
+  return { ok: true, action: x != null ? 'inputText' : 'text', text: value, output: out.trim() };
 }
+
+export { shellArgs };

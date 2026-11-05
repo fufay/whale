@@ -1,159 +1,167 @@
-// hdc 调用封装（异步）。
+// hdc 调用封装：设备侧命令走「长连会话」（PTY 常驻 hdc shell），
+// Host 侧命令（file recv / 起桥 / 桥检查）走 ctx.shell 一次性调用。
 //
-// 两条通道：
-//  · fast：直接 exec 真 hdc（$HOME/.hdc-bridge/real.path），并注入桥壳的 LD_PRELOAD
-//    （$HOME/.hdc-bridge/shim.so）。真机实测每次调用 ~95ms，而经 $HOME/bin/hdc
-//    桥壳（hdcb）每次 ~300ms——桥壳每次要做端口发现/连通性自检，属于每次调用的固定税。
-//  · shim：$HOME/bin/hdc（hdcb，自动起桥/自愈），原路径；fast 不可用时回退。
-// 快通道探测失败会熔断一段时间再重试，绝不因为快通道故障让工具不可用。
+// 背景（详见 docs/01-长连会话设计.md）：
+//  · 每次 ctx.shell 调 hdc 都要重新起 hdc→hdcb→真 hdc，固定开销 ~200ms；
+//  · 长连会话（lib/session.js）把后续命令压到 ~40ms；
+//  · 长连不可用 / 连续异常时自动降级为逐次调用（工具仍可用，只是慢）。
 //
-// 另外维护一个「设备侧临时文件清理队列」：每次 hdc shell 调用把上一次遗留的
-// 远端临时文件一起 rm 掉，省掉「capture 后单独 rm」的一次 hdc 往返。
-import { execFile } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { promisify } from 'node:util';
+// 插件自己的职责（都不碰桥）：设备侧临时文件清理队列、uitest 单例串行化、
+// hdc 失败形态识别（exit 0 + [Fail]/[Empty]）。
+import { existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import {
+  closeSession,
+  configure as configureSession,
+  disposeSession,
+  ensureSession,
+  invalidateSession,
+  isDegraded,
+  openSession,
+  runInSession,
+  sessionStatus,
+  terminalAvailable,
+} from './session.js';
 
-const execFileAsync = promisify(execFile);
+let shellRef = null;
+let sessionConfigured = false;
+const RELAY_PATH = join(dirname(fileURLToPath(import.meta.url)), 'relay.py');
+
+const SHELL_MISSING =
+  'ctx.shell 未挂载：screen-pilot 一律经 DSH 的 shell 服务执行 hdc（不用 node:child_process）。'
+  + '请确认 profile 里 bash/subprocess 执行器已启用，重启 DSH 后重试。';
+
 const HOME = process.env.HOME || '';
-const BRIDGE_DIR = join(HOME, '.hdc-bridge');
 const DEFAULT_TIMEOUT = 90000;
-const MAX_BUFFER = 256 * 1024 * 1024;
+const DEFAULT_MAX_BYTES = 8 * 1024 * 1024;
 
-/** fast 通道熔断：连续探测失败 3 次后本进程内不再尝试。 */
-const FAST_MAX_PROBES = 3;
-let fastProbes = 0;
-let fastProbeBackoff = 0;
-let fastDisabled = false;
-
-let transport = null;
-let preparing = null;
 const cleanupQueue = new Set();
 let firstShellDone = false;
 
-function mode() {
-  const v = String(process.env.SCREEN_PILOT_HDC || 'auto').toLowerCase();
-  return v === 'shim' || v === 'fast' ? v : 'auto';
+/** 桥壳可执行文件：$HOME/bin/hdc（不存在时退回 PATH 上的 hdc）。 */
+function bridgeBin() {
+  const p = join(HOME, 'bin', 'hdc');
+  return existsSync(p) ? p : 'hdc';
 }
 
-function shimTransport() {
-  const shim = join(HOME, 'bin', 'hdc');
-  return { kind: 'shim', bin: existsSync(shim) ? shim : 'hdc', env: process.env, target: null };
+/** 把单个参数安全拼进 shell 命令行（单引号包裹）。 */
+function quoteArg(value) {
+  return "'" + String(value).replace(/'/g, "'\\''") + "'";
 }
 
-function fastTransport() {
+/** 从 shell 结果里取文本（CollectedOutput | string 两种形态）。 */
+function textOf(output) {
+  if (output && typeof output === 'object' && typeof output.text === 'string') return output.text;
+  return typeof output === 'string' ? output : '';
+}
+
+/** 经 ctx.shell 一次性执行一条 Host 侧命令，返回 { out, err, exitCode }。 */
+async function runHostCommand(command, opts = {}) {
+  if (!shellRef || typeof shellRef.execute !== 'function') throw new Error(SHELL_MISSING);
+  const request = {
+    command,
+    timeoutMs: Number(opts.timeoutMs) > 0 ? Number(opts.timeoutMs) : DEFAULT_TIMEOUT,
+    onExpiry: 'kill',
+    stdoutMaxBytes: DEFAULT_MAX_BYTES,
+    sandboxPolicy: { mode: 'danger-full-access', workspaceRoot: process.cwd() },
+  };
+  const spec = typeof shellRef.resolve === 'function' ? shellRef.resolve(request) : request;
+  const handle = await shellRef.execute(spec);
+  const result = handle && typeof handle.result === 'function' ? await handle.result() : handle;
+  const out = textOf(result && result.stdout);
+  const err = textOf(result && result.stderr);
+  const exitCode = result && typeof result.exitCode === 'number' ? result.exitCode : 0;
+  if (result && (result.timedOut || result.aborted || exitCode !== 0)) {
+    const e = new Error('hdc 调用失败: ' + (err.trim() || (result.timedOut ? '超时' : 'exit=' + exitCode)));
+    e.stdout = out;
+    e.stderr = err;
+    e.exitCode = exitCode;
+    throw e;
+  }
+  if (/^\s*\[(Fail|Empty)\]/i.test(out || '')) {
+    const e = new Error('hdc 调用失败: ' + String(out).trim());
+    e.stdout = out;
+    e.stderr = err;
+    e.exitCode = 0;
+    throw e;
+  }
+  return { out, err, exitCode };
+}
+
+/** 起桥（只在桥不可用时调一次桥自带脚本；不修改桥文件）。 */
+async function ensureBridge() {
   try {
-    const real = readFileSync(join(BRIDGE_DIR, 'real.path'), 'utf8').trim();
-    const preload = join(BRIDGE_DIR, 'shim.so');
-    if (!real || !existsSync(real) || !existsSync(preload)) return null;
-    const env = { ...process.env };
-    env.LD_PRELOAD = env.LD_PRELOAD ? `${preload}:${env.LD_PRELOAD}` : preload;
-    return { kind: 'fast', bin: real, env, target: null };
+    await runHostCommand([bridgeBin(), 'list', 'targets'].map(quoteArg).join(' '), { timeoutMs: 20000 });
+    return;
   } catch {
-    return null;
+    /* 继续尝试起桥 */
   }
-}
-
-/** 执行一次 hdc；把子进程错误整理成带 stdout/stderr/exitCode 的 Error。 */
-async function execOn(tr, args, timeout) {
-  const full = tr.target && (args[0] === 'shell' || args[0] === 'file')
-    ? ['-t', tr.target, ...args]
-    : args;
-  try {
-    return await execFileAsync(tr.bin, full, { encoding: 'utf8', timeout, maxBuffer: MAX_BUFFER, env: tr.env });
-  } catch (e) {
-    const err = new Error('hdc 调用失败: ' + (String(e.stderr || '').trim() || e.message || String(e)));
-    err.stdout = e.stdout || '';
-    err.stderr = e.stderr || '';
-    err.exitCode = typeof e.code === 'number' ? e.code : undefined;
-    throw err;
-  }
-}
-
-/** 读上次成功的端口（hdcb 会写；无线调试换端口时由 hdcb 负责更新）。 */
-function cachedPort() {
-  try {
-    const raw = readFileSync(join(BRIDGE_DIR, 'port.cache'), 'utf8');
-    return String(raw).trim().split(/\s+/)[0] || '';
-  } catch {
-    return '';
-  }
-}
-
-/** 有界重连：用缓存端口做一次 tconn（≤2.5s）。失败静默，交给上层决定。 */
-async function reconnectOnce(fast) {
-  const port = cachedPort();
-  if (!port) return;
-  try {
-    await execFileAsync(fast.bin, ['tconn', `127.0.0.1:${port}`], {
-      encoding: 'utf8',
-      timeout: 2500,
-      maxBuffer: 1024 * 1024,
-      env: fast.env,
-    });
-  } catch {
-    /* 连不上就算了：调用方会回退桥壳（hdcb 有界失败） */
-  }
-}
-
-async function listFirstTarget(fast, timeout) {
-  const { stdout } = await execFileAsync(fast.bin, ['list', 'targets'], {
-    encoding: 'utf8',
-    timeout,
-    maxBuffer: 1024 * 1024,
-    env: fast.env,
-  });
-  return String(stdout).trim().split(/\r?\n/).map((s) => s.trim()).filter(Boolean)[0] || '';
-}
-
-async function probeFast() {
-  const fast = fastTransport();
-  if (!fast) throw new Error('没有可用的 fast 通道（缺少 real.path / shim.so）');
-  // 短探测（不带 -t，此时还不知道目标）；没有目标就先做一次有界 tconn 再探一次。
-  // 背景：无线调试端口每次开机/换网都会变，server 换实例后 tconn 状态会丢——与其回退到
-  // 会扫描的桥壳，不如在这里用缓存端口快速重连一次（hdcb 负责把端口刷新进 port.cache）。
-  let target = await listFirstTarget(fast, 2500);
-  if (!target) {
-    await reconnectOnce(fast);
-    target = await listFirstTarget(fast, 2000);
-  }
-  if (!target) throw new Error('fast 通道没有可用目标（已做一次有界 tconn）');
-  fast.target = target;
-  return fast;
-}
-
-/** 选定通道（只在首次以及 fast 熔断恢复后执行一次）。 */
-function ensureTransport() {
-  if (transport) {
-    // fast 曾经熔断：到点后重新探测一次，成功就换回快通道。
-    if (!fastDisabled && mode() !== 'shim' && transport.kind === 'shim' && fastProbeBackoff > 0 && Date.now() >= fastProbeBackoff) {
-      transport = null;
-    } else {
-      return transport;
-    }
-  }
-  if (preparing) return preparing;
-  preparing = (async () => {
-    if (mode() === 'shim' || fastDisabled) {
-      transport = shimTransport();
-      return transport;
-    }
-    if (transport && transport.kind === 'fast') return transport;
+  const bridgeSh = join(HOME, '.hdc-bridge', 'src', 'bridge.sh');
+  if (existsSync(bridgeSh)) {
     try {
-      transport = await probeFast();
+      await runHostCommand(`sh ${quoteArg(bridgeSh)}`, { timeoutMs: 120000 });
     } catch {
-      fastProbes += 1;
-      if (fastProbes >= FAST_MAX_PROBES) {
-        fastDisabled = true;
-        fastProbeBackoff = 0;
-      } else {
-        fastProbeBackoff = Date.now() + 15000 * fastProbes; // 15s / 30s 后重试
-      }
-      transport = shimTransport();
+      /* 起桥失败由下面的检查决定 */
     }
-    return transport;
-  })().finally(() => { preparing = null; });
-  return preparing;
+  }
+  await runHostCommand([bridgeBin(), 'list', 'targets'].map(quoteArg).join(' '), { timeoutMs: 20000 });
+}
+
+/** 经 ctx.shell 起 relay 进程（python 自开 PTY），返回常驻 handle；不等待命令结束。 */
+async function startRelay(command) {
+  if (!shellRef || typeof shellRef.execute !== 'function') throw new Error(SHELL_MISSING);
+  const request = {
+    command,
+    onExpiry: 'none',
+    stdoutMaxBytes: 4 * 1024 * 1024,
+    sandboxPolicy: { mode: 'danger-full-access', workspaceRoot: process.cwd() },
+  };
+  const spec = typeof shellRef.resolve === 'function' ? shellRef.resolve(request) : request;
+  return shellRef.execute(spec);
+}
+
+/** 懒配置长连会话（依赖注入后第一次使用时）。 */
+function ensureSessionConfigured() {
+  if (sessionConfigured) return;
+  sessionConfigured = true;
+  configureSession({
+    relayFactory: process.env.SP_DISABLE_RELAY === '1' ? null : startRelay,
+    relayPath: RELAY_PATH,
+    bridgeBin: bridgeBin(),
+    bridgeCheck: ensureBridge,
+    log: (...args) => {
+      try {
+        console.log(...args);
+      } catch {
+        /* ignore */
+      }
+    },
+  });
+}
+
+/** 设置会话参数（空闲/命令/打开超时、会话日志）；可在注入后任意时刻调用。 */
+export function setSessionOptions(options = {}) {
+  ensureSessionConfigured();
+  configureSession({
+    idleTimeoutMs: options.idleTimeoutMs,
+    commandTimeoutMs: options.commandTimeoutMs,
+    openTimeoutMs: options.openTimeoutMs,
+    sessionLog: options.sessionLog,
+  });
+}
+
+/** 注入 ctx.shell（插件入口调用）。 */
+export function setShell(shell) {
+  shellRef = shell || null;
+  ensureSessionConfigured();
+}
+
+/** 执行 hdc 子命令（Host 侧一次性），返回 stdout。保留给需要 host 侧 hdc 的场景。 */
+export async function hdcRun(args, opts = {}) {
+  const command = [bridgeBin(), ...args.map(String)].map(quoteArg).join(' ');
+  const { out } = await runHostCommand(command, { timeoutMs: opts.timeoutMs });
+  return out;
 }
 
 /** 取出清理队列的前缀命令（调用即清空；失败时由调用方决定是否重放）。 */
@@ -172,35 +180,67 @@ function takeCleanupPrefix() {
   return prefix + 'rm -f ' + paths.join(' ') + '; ';
 }
 
-/** 登记一个设备侧临时文件，等下一次 hdc shell 调用时顺带删掉。 */
+/** 登记一个设备侧临时文件，等下一次设备命令时顺带删掉。 */
 export function queueCleanup(remotePath) {
   if (remotePath) cleanupQueue.add(remotePath);
 }
 
-/** 执行 hdc 子命令，返回 stdout（utf8）。失败抛错并携带 stdout/stderr。 */
-export async function hdcRun(args, opts = {}) {
-  const tr = await ensureTransport();
-  const timeout = opts.timeout || DEFAULT_TIMEOUT;
-  try {
-    const r = await execOn(tr, args, timeout);
-    return r.stdout;
-  } catch (e) {
-    if (tr.kind === 'fast') {
-      // 快通道单次失败：降级到桥壳并让后续调用冷却后重新探测；本命令不重试，
-      // 避免对输入注入等有副作用的命令造成重复执行。
-      fastProbeBackoff = Date.now() + 30000;
-      transport = shimTransport();
-      e.message += '（快通道失败，后续调用改用桥壳：' + tr.bin + '）';
-    }
-    throw e;
+/** 统一失败判定：非 0 退出 / [Fail] / [Empty] / 桥掉线文本 → 抛错（会话路径与逐次路径一致）。 */
+function checkDeviceFailure(out, code) {
+  const text = String(out || '');
+  const failMatch = /^\s*\[(Fail|Empty)\]/i.test(text);
+  const bridgeLost = /Connect failed|Not support|Error opening|没有可连目标/i.test(text);
+  if (typeof code === 'number' && code !== 0) {
+    const err = new Error('hdc 调用失败: ' + (text.trim() || 'exit=' + code));
+    err.stdout = text;
+    err.exitCode = code;
+    throw err;
+  }
+  if (failMatch || bridgeLost) {
+    const err = new Error('hdc 调用失败: ' + text.trim().slice(0, 300));
+    err.stdout = text;
+    err.code = 'SESSION_BRIDGE_LOST';
+    throw err;
   }
 }
 
+/** 设备侧命令：优先长连会话；只有“命令确定没发出去”的错误才允许逐次回退（P0-1）。 */
+async function runDeviceCommand(cmd, opts = {}) {
+  ensureSessionConfigured();
+  if (terminalAvailable() && !isDegraded()) {
+    try {
+      const r = await runInSession(cmd, { timeoutMs: opts.timeoutMs });
+      try {
+        checkDeviceFailure(r.out, r.code);
+      } catch (e) {
+        // 桥掉线/输出失败：拆掉可能已损坏的会话，下一次调用重建；命令本身不重跑。
+        await invalidateSession(String(e.message || e)).catch(() => {});
+        throw e;
+      }
+      return r.out;
+    } catch (e) {
+      const safeToFallback = e && !e.commandSent && !e.sessionBroken
+        && (e.code === 'SESSION_DEGRADED' || e.code === 'NO_TERMINAL' || e.code === 'OPEN_FAILED');
+      if (!safeToFallback) throw e;
+      // 命令尚未发送：退化为逐次调用。
+      return (await runHostCommand([bridgeBin(), 'shell', cmd].map(quoteArg).join(' '), opts)).out;
+    }
+  }
+  return (await runHostCommand([bridgeBin(), 'shell', cmd].map(quoteArg).join(' '), opts)).out;
+}
+
+/** 长命令（dumpLayout / screenCap / snapshot_display）默认给更长的超时。 */
+function timeoutForCommand(cmd) {
+  return /dumpLayout|screenCap|snapshot_display/.test(String(cmd)) ? 30000 : undefined;
+}
+
 /** hdc shell "<cmd>"（单条字符串命令）；顺带清理已登记的远端临时文件。 */
-export async function shell(cmd) {
+export async function shell(cmd, opts = {}) {
   const prefix = takeCleanupPrefix();
+  const timeoutMs = Number(opts.timeoutMs) > 0 ? Number(opts.timeoutMs) : timeoutForCommand(cmd);
+  const runOpts = timeoutMs ? { timeoutMs } : {};
   try {
-    return await hdcRun(['shell', prefix + cmd]);
+    return await runDeviceCommand(prefix + cmd, runOpts);
   } catch (e) {
     // 命令没跑成，把清理项放回队列，下次再删（prefix 只由本模块生成：rm -f A B; ...）。
     for (const seg of prefix.split(';')) {
@@ -211,35 +251,57 @@ export async function shell(cmd) {
   }
 }
 
-/** hdc shell <arg1> <arg2> ...（参数自动拼接，避免二次转义）。 */
+/** hdc shell <arg1> <arg2> ...（参数拼接成一条设备 shell 命令，避免二次转义）。 */
 export async function shellArgs(...args) {
-  return hdcRun(['shell', ...args.map(String)]);
+  const cmd = args.map((a) => quoteArg(a)).join(' ');
+  return runDeviceCommand(cmd);
 }
 
-// ── uitest 单例串行化 ──
-// 设备侧 uitest 是单例服务（内部走 broadcast 等 reply）：两个 uitest 命令同时发会撞车，
-// 实测表现为 `DumpLayout failed:Wait for subscribe uitest.broadcast.command.reply timeout`。
-// 插件内部所有 uitest 命令（dumpLayout / screenCap）都经这个互斥队列串行发出；
-// 异步化带来的并行只保留在「非 uitest」操作之间（snapshot_display / hidumper / file recv 等）。
+/** 同 shellArgs，但可传 opts（例如输入注入用 retryable:false / 自定义超时）。 */
+export async function shellArgsWith(args, opts = {}) {
+  const cmd = args.map((a) => quoteArg(a)).join(' ');
+  return runDeviceCommand(cmd, opts);
+}
+
+/** 执行一条原样的设备 shell 命令（供需要 shell 语法/管道的场景；不重试）。 */
+export async function deviceCommand(cmd, opts = {}) {
+  return runDeviceCommand(cmd, opts);
+}
+
+/** hdc file recv <remote> <local>（Host 侧命令，不能进设备会话）。 */
+export async function fileRecv(remote, local) {
+  const { out } = await runHostCommand([bridgeBin(), 'file', 'recv', remote, local].map(quoteArg).join(' '));
+  if (/\[Fail\]/i.test(out) || !existsSync(local)) {
+    throw new Error('file recv 失败: ' + String(out).trim());
+  }
+  return out;
+}
+
+// ── uitest 单例串行化（设备侧 uitest 是单例服务；长连队列本身串行，这里再兜一层）──
 let uitestChain = Promise.resolve();
 
-/** 串行执行一条会走设备 uitest 服务的 shell 命令。 */
+/** 串行执行一条走设备 uitest 服务的 shell 命令。 */
 export function uitestShell(cmd) {
   const run = uitestChain.then(() => shell(cmd), () => shell(cmd));
   uitestChain = run.catch(() => {});
   return run;
 }
 
-/** 设备侧 uitest 并发撞车的典型报错（可安全重试一次）。 */
+/** 设备侧 uitest 并发撞车的典型报错（可安全重试）。 */
 export function isUitestContention(err) {
   return /Wait for subscribe|uitest\.broadcast|reply timeout/i.test(String((err && err.message) || err));
 }
 
-/** hdc file recv <remote> <local>。注意：hdc 对不存在的远端文件也返回 0，故双重校验。 */
-export async function fileRecv(remote, local) {
-  const out = await hdcRun(['file', 'recv', remote, local]);
-  if (/\[Fail\]/i.test(out) || !existsSync(local)) {
-    throw new Error('file recv 失败: ' + String(out).trim());
-  }
-  return out;
+/** 临时调试：经 ctx.shell 跑一条 Host 命令，返回 {out, err, exitCode}。 */
+export async function debugHost(command, opts = {}) {
+  return runHostCommand(command, opts);
 }
+
+// ── 长连会话的生命周期入口（供工具层/插件入口使用）──
+export {
+  closeSession,
+  disposeSession,
+  ensureSession,
+  openSession,
+  sessionStatus,
+};
