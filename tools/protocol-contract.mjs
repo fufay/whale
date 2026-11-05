@@ -266,6 +266,128 @@ for (const pkg of packages) {
   }
 }
 
+/**
+ * 第二遍（兜底）：从 **npm 构建产物**里提取。
+ *
+ * 背景（2026-11-05 升 0.2.2-rc.1 时实测）：上游把打字机（typert）描述符从「源码里的对象字面量
+ * `{ id, service, namespace, method }`」改成了**构建期序列化的描述符表**，落在
+ * `dsh-api-remotes/lib/client.js` 里，形如：
+ *
+ *   "session/list": {
+ *     service: "sessionController",
+ *     invocation: { kind: "direct" },
+ *     parameters: [{ name: "request", wire: "request", source: "json", codec: { ... } }],
+ *     result: { mode: "strict", typeSymbol: "...", ... },
+ *     sourceLocation: { "file": "packages/.../index.ts", "line": 446 }
+ *   }
+ *
+ * 旧正则一条都匹配不到 ⇒ 之前在本机跑会**静默报 0 endpoint**（假绿）。这里按「顶层字段缩进」解析，
+ * 保住 wire（线上名）与 stream（条目顶层 `mode: "stream"`）/cancellable（顶层 `cancellation`）语义。
+ */
+function sliceBraced(text, open) {
+  let depth = 0;
+  let inString = false;
+  let quote = '';
+  let escaped = false;
+  for (let i = open; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === quote) inString = false;
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === '`') {
+      inString = true;
+      quote = ch;
+      continue;
+    }
+    if (ch === '{') depth++;
+    else if (ch === '}') {
+      depth--;
+      if (depth === 0) return text.slice(open, i + 1);
+    }
+  }
+  return undefined;
+}
+
+function extractFromNpmBuild(scopeDir) {
+  const file = join(scopeDir, 'dsh-api-remotes', 'lib', 'client.js');
+  if (!existsSync(file)) return [];
+  const src = readFileSync(file, 'utf8');
+  const out = [];
+  const seen = new Set();
+  const entryRe = /"([a-z][a-zA-Z0-9_-]*\/[a-zA-Z0-9._-]+)": \{/g;
+  let m;
+  while ((m = entryRe.exec(src)) !== null) {
+    const open = src.indexOf('{', m.index);
+    const body = sliceBraced(src, open);
+    if (body === undefined || !/(?:^|\n)\s*service:\s*"/.test(body)) continue;
+    const key = m[1];
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const field = (re) => body.match(re)?.[1];
+    const service = field(/(?:^|\n)\s*service:\s*"([^"]+)"/) ?? '';
+    const stream = /(?:^|\n)\s*mode:\s*"stream"/.test(body);
+    const invocationKind = field(/invocation:\s*\{\s*kind:\s*"([^"]+)"/) ?? 'unknown';
+    const cancellable = /(?:^|\n)\s*cancellation:\s*\{/.test(body);
+    // parameters：切出数组，再逐个参数对象取 name / wire（wire 缺省 = name）
+    const params = [];
+    const pIdx = body.search(/(?:^|\n)\s*parameters:\s*\[/);
+    if (pIdx >= 0) {
+      const arrOpen = body.indexOf('[', pIdx);
+      let depth = 0;
+      let arrEnd = -1;
+      for (let i = arrOpen; i < body.length; i++) {
+        if (body[i] === '[') depth++;
+        else if (body[i] === ']') { depth--; if (depth === 0) { arrEnd = i; break; } }
+      }
+      const arr = body.slice(arrOpen + 1, arrEnd < 0 ? body.length : arrEnd);
+      for (const pm of arr.matchAll(/\{/g)) {
+        const obj = sliceBraced(arr, pm.index);
+        if (obj === undefined) continue;
+        const name = obj.match(/(?:^|\n)\s*name:\s*"([^"]*)"/)?.[1];
+        if (name === undefined) continue;
+        const wire = obj.match(/(?:^|\n)\s*wire:\s*"([^"]*)"/)?.[1] ?? name;
+        params.push({ name, wire });
+      }
+    }
+    const resultOpen = body.search(/(?:^|\n)\s*result:\s*\{/);
+    const resultText = resultOpen < 0 ? '' : (sliceBraced(body, body.indexOf('{', resultOpen)) ?? '');
+    const resultSymbol = resultText.match(/typeSymbol:\s*"([^"]+)"/)?.[1] ?? '';
+    const locText = body.match(/sourceLocation:\s*\{([\s\S]{0,300}?)\}/)?.[1] ?? '';
+    const locFile = locText.match(/"file":\s*"([^"]+)"/)?.[1] ?? '';
+    const locLine = locText.match(/"line":\s*(\d+)/)?.[1] ?? '';
+    const ns = key.slice(0, key.indexOf('/'));
+    const method = key.slice(key.indexOf('/') + 1);
+    // 声明包：最近一个 createTypertRemoteInfo 的 package 字段
+    const before = src.slice(0, m.index);
+    const declPkg = before.match(/package:\s*"@deepseek-ai\/([^"]+)"/g)?.pop()?.match(/@deepseek-ai\/([^"]+)"/)?.[1] ?? 'dsh-api-remotes';
+    out.push({
+      id: `@deepseek-ai/${declPkg}#${key}`,
+      pkg: declPkg,
+      service,
+      namespace: ns,
+      method,
+      kind: stream ? 'stream' : invocationKind,
+      invocationKind,
+      cancellable,
+      params,
+      resultSymbol,
+      source: locFile === '' ? '' : `${locFile}:${locLine}`
+    });
+  }
+  return out;
+}
+
+if (descriptors.length === 0) {
+  const fromNpm = extractFromNpmBuild(scope);
+  if (fromNpm.length > 0) {
+    console.log(`[protocol-contract] 源码形态描述符为 0 ⇒ 改用 npm 构建描述符表提取（${fromNpm.length} 条）`);
+    descriptors.push(...fromNpm);
+  }
+}
+
 descriptors.sort((a, b) => (a.namespace + '/' + a.method).localeCompare(b.namespace + '/' + b.method));
 
 console.log(`# dsh endpoint 调用契约（${descriptors.length} 个 endpoint）\n`);

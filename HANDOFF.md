@@ -3,11 +3,32 @@
 > **这是当前状态，不是规则。** 规则看 `AGENTS.md`；决策看 `DECISIONS.md`；细节看 `docs/README.md`。
 > 每次开工先读本文件，收尾必须更新本文件。目标 1–2 页，不写过程流水账。
 
-**最后更新**：2026-11-03
+**最后更新**：2026-11-05
 **仓库**：`Common/whale` · 分支 `main` · 本次 HEAD 以 `git log` 为准（历史已压缩为「自足单体提交 + 后续修复提交」，不再是 §2 记录的 10-24 那批短哈希）
 **工作树**：`git status` 为准；`hostcore/**` 有改动时须 `place-host-app` 同步（本轮未动 hostcore）
-**核心树口径**：以 `hostcore/core-recipe.json` 为准，当前读数 `0.2.2-alpha.2+whale.2`（本轮未动核心树，只改了 `entry/` ArkTS）
+**核心树口径**：以 `hostcore/core-recipe.json` 为准，当前读数 **`0.2.2-rc.1+whale.1`**（2026-11-05 换核，见 §0.5）
 **签名口径**：开发包默认用 365 天无 ACL 调试 Profile（`dist/signing/dev-profile/whale-dev-debug.p7b`，见 `docs/125` §八）
+
+## 0.5 最近一次（2026-11-05）：核心升级 `0.2.2-alpha.2+whale.3` → `0.2.2-rc.1+whale.1`（已装机）
+
+- **换核**：上游 `@deepseek-ai/dsh` 0.2.2-rc.1。协议端点 147→150（+5/−2 全在 schedule 域；
+  `schedule/{catalog,list,history}` 与 `session/observeProjections` 有形状变化；Whale 不调用 schedule ⇒ 零调用代码改动）。
+  包 +4/−3（新增 `dsh-fs-patch`/两个 client-ui 包/`rrule`；移除 cua 系，仓库零引用）；
+  cordis 4.0.6-alpha.2→4.1.0（导出集与实现相同）；原生依赖范围不变（sharp/koffi/node-pty 同 alpha.2 ⇒ overrides 沿用）；Node >=24.9.0 满足。
+- **改的两处工具**：
+  1) `tools/pack-core.mjs` `patchFsLocalLink()` 改**双形状**（上游把 `createIfAbsent` 形参改成 `options` 对象；
+     新形状 `options.createIfAbsent`/`displayPath`，旧形状保留，都不中才 die）；
+  2) `tools/protocol-contract.mjs` 补 **npm 构建描术符表兜底提取**（上游把 typert 描述符改成构建期序列化表，
+     旧正则 0 命中 ⇒ 以前跑 compat-drift 是假绿；现已可提取 150/150，`docs/128` 那条 BLOCKED 的根因即此）。
+- **协议基线**：`Endpoints.ets` 重生成（150 端点 / 流式 16）；`CompatIndex.SUPPORTED_VERSIONS` 加 `0.2.2-rc.1`
+  并补记矩阵历史；漂移门禁 **exit 0**，负测试（alpha.2 契约）**exit 1**。
+- **产物**：core zip `dsh-core-0.2.2-rc.1+whale.1-openharmony-arm64.zip` 108,464,120 B / 44,879 条目 /
+  sha256 `c2cb6aeb0bd1a140…`（resfile 已 place 且三处一致）；HAP `whale-dev-core-022rc1.hap`
+  395,816,448 B / sha256 `67f7e2f0fb759640…`（1.1.5 / 1010001），**已 `hdc install -r` 覆盖安装成功**。
+- **门禁全绿**：补丁 173/0、入口 PASS（663/3,990）、PTC PASS×2、native-closure PASS、web-fetch-jitless PASS、
+  parity PASS、cli-shim 40/40、fetch-shim 全过、resfile-sync 19 件、resfile-core-zip ✅、签名 47/1（koffi，与 alpha.2 同 ⇒ 非回归）。
+- **待办**：用户冷启动冒烟（清单见 `docs/134` §5）；冒烟通过后可清旧树 `cores/0.2.2-alpha.2+whale.3`（≈674 MB）；
+  git 提交本轮改动（pack-core/protocol-contract/Endpoints/CompatIndex/docs/134/README/HANDOFF）。
 
 ## 0. 最近一次（2026-11-04）：UI 自动化卡死 → 两处根因已修（hdcb v5）
 

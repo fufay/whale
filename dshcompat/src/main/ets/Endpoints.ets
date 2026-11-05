@@ -6,15 +6,15 @@
  *   node tools/gen-compat-endpoints.mjs
  * 漂移检测：node tools/compat-drift.mjs（对当前安装/checkout 的上游重新提取并比对）
  *
- * 采集对象：@deepseek-ai/dsh 0.2.1-alpha.1 · 140 个 endpoint
+ * 采集对象：@deepseek-ai/dsh 0.2.2-rc.1 · 150 个 endpoint
  */
 
 import { ArgsShape, DshCapability, DshEndpoint, UpstreamIdentity } from './CompatTypes';
 
 export const UPSTREAM_IDENTITY: UpstreamIdentity = {
-  corePackage: '0.2.1-alpha.1',
-  capturedAt: '2026-10-04T13:40:12.375Z',
-  endpointCount: 140
+  corePackage: '0.2.2-rc.1',
+  capturedAt: '2026-11-05T12:08:48.458Z',
+  endpointCount: 150
 };
 
 /** 全部 endpoint 调用契约（按 endpoint 名排序） */
@@ -27,7 +27,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['accountId', 'orderId', 'client'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/api/account-controller/src/index.ts:55',
     capability: '',
     capabilities: []
   },
@@ -39,7 +39,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['attemptId'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/api/account-controller/src/index.ts:75',
     capability: '',
     capabilities: []
   },
@@ -51,7 +51,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['client'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/api/account-controller/src/index.ts:35',
     capability: '',
     capabilities: []
   },
@@ -63,7 +63,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['client'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/api/account-controller/src/index.ts:26',
     capability: '',
     capabilities: []
   },
@@ -75,7 +75,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: [],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/api/account-controller/src/index.ts:19',
     capability: '',
     capabilities: []
   },
@@ -87,7 +87,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['client'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/api/account-controller/src/index.ts:44',
     capability: '',
     capabilities: []
   },
@@ -99,7 +99,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: [],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/api/account-controller/src/index.ts:81',
     capability: '',
     capabilities: []
   },
@@ -111,7 +111,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['client'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/api/account-controller/src/index.ts:90',
     capability: '',
     capabilities: []
   },
@@ -123,7 +123,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['client', 'callbackOrigin', 'loginSource'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/api/account-controller/src/index.ts:66',
     capability: '',
     capabilities: []
   },
@@ -135,7 +135,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: [],
     stream: true,
     cancellable: true,
-    source: '',
+    source: 'packages/api/account-controller/src/index.ts:119',
     capability: '',
     capabilities: []
   },
@@ -147,7 +147,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: [],
     stream: true,
     cancellable: true,
-    source: '',
+    source: 'packages/api/account-controller/src/index.ts:97',
     capability: '',
     capabilities: []
   },
@@ -159,7 +159,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: [],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/preset/agent-preset-registry/src/index.ts:211',
     capability: 'agentPresets',
     capabilities: ['agentPresets']
   },
@@ -171,7 +171,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['agentPreset'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/preset/agent-preset-registry/src/index.ts:234',
     capability: 'agentPresets',
     capabilities: ['agentPresets']
   },
@@ -183,7 +183,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['agentId', 'agentPreset'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/preset/agent-preset-registry/src/index.ts:365',
     capability: 'agentPresets',
     capabilities: ['agentPresets']
   },
@@ -195,7 +195,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['agentId', 'line', 'submittedAttachments'],
     stream: false,
     cancellable: true,
-    source: '',
+    source: 'packages/interaction/commands/src/index.ts:361',
     capability: 'commands',
     capabilities: ['commands']
   },
@@ -207,7 +207,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['agentId'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/interaction/commands/src/index.ts:315',
     capability: 'commands',
     capabilities: ['commands']
   },
@@ -219,7 +219,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['refs'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/api/settings-controller/src/credentials.ts:83',
     capability: 'credentials',
     capabilities: ['credentials']
   },
@@ -231,7 +231,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['ref', 'value'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/api/settings-controller/src/credentials.ts:100',
     capability: 'credentials',
     capabilities: ['credentials']
   },
@@ -243,7 +243,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['ref'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/api/settings-controller/src/credentials.ts:113',
     capability: 'credentials',
     capabilities: ['credentials']
   },
@@ -255,7 +255,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['path', 'name'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/api/workspace-controller/src/directory-picker.ts:88',
     capability: 'workspaces',
     capabilities: ['workspaces']
   },
@@ -267,7 +267,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['path'],
     stream: false,
     cancellable: true,
-    source: '',
+    source: 'packages/api/workspace-controller/src/directory-picker.ts:72',
     capability: 'workspaces',
     capabilities: ['workspaces']
   },
@@ -279,7 +279,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: [],
     stream: false,
     cancellable: true,
-    source: '',
+    source: 'packages/api/workspace-controller/src/directory-picker.ts:55',
     capability: 'workspaces',
     capabilities: ['workspaces']
   },
@@ -291,7 +291,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['agentId', 'pluginId', 'pluginRunId'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/extensions/cordis-host-runner/src/index.ts:402',
     capability: '',
     capabilities: []
   },
@@ -303,7 +303,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: [],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/extensions/cordis-host-runner/src/index.ts:544',
     capability: '',
     capabilities: []
   },
@@ -315,7 +315,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['pluginId', 'pluginRunId', 'method', 'args'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/extensions/cordis-host-runner/src/index.ts:760',
     capability: '',
     capabilities: []
   },
@@ -327,7 +327,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['agentId', 'pluginId', 'pluginRunId', 'failure'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/extensions/cordis-host-runner/src/index.ts:737',
     capability: '',
     capabilities: []
   },
@@ -339,7 +339,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['agentId', 'pluginId', 'pluginRunId', 'failure'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/extensions/cordis-host-runner/src/index.ts:703',
     capability: '',
     capabilities: []
   },
@@ -351,7 +351,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['agentId', 'requestId', 'resolution'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/extensions/cordis-host-runner/src/index.ts:530',
     capability: '',
     capabilities: []
   },
@@ -363,7 +363,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['requestId', 'resolution'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/extensions/cordis-host-runner/src/index.ts:431',
     capability: '',
     capabilities: []
   },
@@ -375,7 +375,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['agentId', 'pluginId', 'packageId', 'mode', 'requestId', 'approveFutureVersions'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/extensions/cordis-host-runner/src/index.ts:343',
     capability: '',
     capabilities: []
   },
@@ -387,7 +387,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['agentId', 'pluginId', 'resolution'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/extensions/cordis-host-runner/src/index.ts:456',
     capability: '',
     capabilities: []
   },
@@ -399,7 +399,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['agentId', 'pluginId'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/extensions/cordis-host-runner/src/index.ts:498',
     capability: '',
     capabilities: []
   },
@@ -411,7 +411,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['providers'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/extensions/cordis-host-runner/src/index.ts:516',
     capability: '',
     capabilities: []
   },
@@ -423,7 +423,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['agentId', 'pluginId'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/extensions/cordis-host-runner/src/index.ts:245',
     capability: '',
     capabilities: []
   },
@@ -435,7 +435,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['agentId', 'query'],
     stream: false,
     cancellable: true,
-    source: '',
+    source: 'packages/api/session-controller/src/file-references.ts:33',
     capability: '',
     capabilities: []
   },
@@ -447,7 +447,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['agentId', 'request'],
     stream: false,
     cancellable: true,
-    source: '',
+    source: 'packages/client/file-upload/src/index.ts:113',
     capability: 'fileUploads',
     capabilities: ['fileUploads']
   },
@@ -459,7 +459,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['agentId', 'ref'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/goal/goal/src/index.ts:435',
     capability: 'goals',
     capabilities: ['goals']
   },
@@ -471,7 +471,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['agentId', 'ref'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/goal/goal/src/index.ts:393',
     capability: 'goals',
     capabilities: ['goals']
   },
@@ -483,7 +483,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['agentId', 'request'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/goal/goal/src/index.ts:646',
     capability: 'goals',
     capabilities: ['goals']
   },
@@ -495,7 +495,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['agentId', 'ref', 'request'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/goal/goal/src/index.ts:331',
     capability: 'goals',
     capabilities: ['goals']
   },
@@ -507,7 +507,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['agentId'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/goal/goal/src/index.ts:279',
     capability: 'goals',
     capabilities: ['goals']
   },
@@ -519,7 +519,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['agentId', 'ref'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/goal/goal/src/index.ts:354',
     capability: 'goals',
     capabilities: ['goals']
   },
@@ -531,7 +531,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['agentId', 'ref'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/goal/goal/src/index.ts:366',
     capability: 'goals',
     capabilities: ['goals']
   },
@@ -543,7 +543,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['request'],
     stream: true,
     cancellable: true,
-    source: '',
+    source: 'packages/api/job-controller/src/index.ts:91',
     capability: '',
     capabilities: []
   },
@@ -555,7 +555,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['request'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/api/job-controller/src/index.ts:110',
     capability: '',
     capabilities: []
   },
@@ -567,7 +567,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['request'],
     stream: true,
     cancellable: true,
-    source: '',
+    source: 'packages/api/job-controller/src/index.ts:76',
     capability: '',
     capabilities: []
   },
@@ -579,7 +579,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['settingsNs', 'request'],
     stream: false,
     cancellable: true,
-    source: '',
+    source: 'packages/llm/llm/src/index.ts:643',
     capability: 'llm',
     capabilities: ['llm']
   },
@@ -591,7 +591,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: [],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/llm/llm/src/index.ts:555',
     capability: 'llm',
     capabilities: ['llm']
   },
@@ -603,7 +603,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: [],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/llm/llm/src/index.ts:483',
     capability: 'llm',
     capabilities: ['llm']
   },
@@ -615,7 +615,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['request'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/feedback/message-feedback/src/index.ts:207',
     capability: '',
     capabilities: []
   },
@@ -627,7 +627,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['request'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/feedback/message-feedback/src/index.ts:155',
     capability: '',
     capabilities: []
   },
@@ -639,7 +639,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['request'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/feedback/message-feedback/src/index.ts:167',
     capability: '',
     capabilities: []
   },
@@ -651,7 +651,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: [],
     stream: false,
     cancellable: true,
-    source: '',
+    source: 'packages/document/office-to-pdf/src/index.ts:175',
     capability: '',
     capabilities: []
   },
@@ -663,7 +663,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['workspaceFileScopeId', 'path', 'priority'],
     stream: false,
     cancellable: true,
-    source: '',
+    source: 'packages/document/office-to-pdf/src/index.ts:160',
     capability: '',
     capabilities: []
   },
@@ -675,7 +675,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: [],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/interaction/permission-presets/src/index.ts:292',
     capability: '',
     capabilities: []
   },
@@ -687,7 +687,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: [],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/host/plugin-inventory/src/index.ts:71',
     capability: 'plugins',
     capabilities: ['plugins']
   },
@@ -699,7 +699,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['requestId'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/boot/plugin-manager/src/index.ts:1030',
     capability: '',
     capabilities: []
   },
@@ -711,7 +711,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['spec', 'options'],
     stream: false,
     cancellable: true,
-    source: '',
+    source: 'packages/boot/plugin-manager/src/index.ts:603',
     capability: '',
     capabilities: []
   },
@@ -723,7 +723,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['spec', 'options'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/boot/plugin-manager/src/index.ts:873',
     capability: '',
     capabilities: []
   },
@@ -735,7 +735,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: [],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/boot/plugin-manager/src/index.ts:489',
     capability: '',
     capabilities: []
   },
@@ -747,7 +747,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: [],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/boot/plugin-manager/src/index.ts:465',
     capability: '',
     capabilities: []
   },
@@ -759,7 +759,31 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: [],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/boot/plugin-manager/src/index.ts:441',
+    capability: '',
+    capabilities: []
+  },
+  {
+    id: '@deepseek-ai/dsh-plugin-manager#pluginManager/listVersions',
+    ns: 'pluginManager',
+    method: 'listVersions',
+    shape: ArgsShape.NAMED,
+    params: ['name', 'options'],
+    stream: false,
+    cancellable: true,
+    source: 'packages/boot/plugin-manager/src/index.ts:663',
+    capability: '',
+    capabilities: []
+  },
+  {
+    id: '@deepseek-ai/dsh-plugin-manager#pluginManager/readBundleDetail',
+    ns: 'pluginManager',
+    method: 'readBundleDetail',
+    shape: ArgsShape.NAMED,
+    params: ['name', 'language', 'options'],
+    stream: false,
+    cancellable: false,
+    source: 'packages/boot/plugin-manager/src/index.ts:405',
     capability: '',
     capabilities: []
   },
@@ -771,7 +795,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: [],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/boot/plugin-manager/src/index.ts:587',
     capability: '',
     capabilities: []
   },
@@ -783,7 +807,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['name'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/boot/plugin-manager/src/index.ts:1047',
     capability: '',
     capabilities: []
   },
@@ -795,7 +819,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['name', 'enabled'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/boot/plugin-manager/src/index.ts:851',
     capability: '',
     capabilities: []
   },
@@ -807,7 +831,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['id', 'enabled'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/boot/plugin-manager/src/index.ts:833',
     capability: '',
     capabilities: []
   },
@@ -819,7 +843,19 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['packageVersion', 'runtimeVersion', 'enabled', 'acceptRisk'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/boot/plugin-manager/src/index.ts:454',
+    capability: '',
+    capabilities: []
+  },
+  {
+    id: '@deepseek-ai/dsh-plugin-manager#pluginManager/updateBundle',
+    ns: 'pluginManager',
+    method: 'updateBundle',
+    shape: ArgsShape.NAMED,
+    params: ['name', 'version', 'options'],
+    stream: false,
+    cancellable: false,
+    source: 'packages/boot/plugin-manager/src/index.ts:714',
     capability: '',
     capabilities: []
   },
@@ -831,7 +867,55 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['requestId'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/boot/plugin-manager/src/index.ts:1020',
+    capability: '',
+    capabilities: []
+  },
+  {
+    id: '@deepseek-ai/dsh-plugin-market#pluginMarket/listIndexes',
+    ns: 'pluginMarket',
+    method: 'listIndexes',
+    shape: ArgsShape.NONE,
+    params: [],
+    stream: false,
+    cancellable: false,
+    source: 'packages/boot/plugin-market/src/index.ts:180',
+    capability: '',
+    capabilities: []
+  },
+  {
+    id: '@deepseek-ai/dsh-plugin-market#pluginMarket/readEntryDetail',
+    ns: 'pluginMarket',
+    method: 'readEntryDetail',
+    shape: ArgsShape.NAMED,
+    params: ['url', 'name', 'version', 'language', 'options'],
+    stream: false,
+    cancellable: false,
+    source: 'packages/boot/plugin-market/src/index.ts:286',
+    capability: '',
+    capabilities: []
+  },
+  {
+    id: '@deepseek-ai/dsh-plugin-market#pluginMarket/search',
+    ns: 'pluginMarket',
+    method: 'search',
+    shape: ArgsShape.NAMED,
+    params: ['url', 'query'],
+    stream: false,
+    cancellable: false,
+    source: 'packages/boot/plugin-market/src/index.ts:229',
+    capability: '',
+    capabilities: []
+  },
+  {
+    id: '@deepseek-ai/dsh-plugin-market#pluginMarket/setIndexes',
+    ns: 'pluginMarket',
+    method: 'setIndexes',
+    shape: ArgsShape.NAMED,
+    params: ['urls'],
+    stream: false,
+    cancellable: false,
+    source: 'packages/boot/plugin-market/src/index.ts:201',
     capability: '',
     capabilities: []
   },
@@ -843,7 +927,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: [],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/client/ui-plugin-manager/src/index.ts:51',
     capability: '',
     capabilities: []
   },
@@ -855,7 +939,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: [],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/client/product-analytics/src/index.ts:67',
     capability: '',
     capabilities: []
   },
@@ -867,7 +951,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['event'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/client/product-analytics/src/index.ts:100',
     capability: '',
     capabilities: []
   },
@@ -879,7 +963,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: [],
     stream: true,
     cancellable: true,
-    source: '',
+    source: 'packages/client/product-analytics/src/index.ts:75',
     capability: '',
     capabilities: []
   },
@@ -891,19 +975,55 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: [],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/schedule/schedule/src/index.ts:441',
     capability: '',
     capabilities: []
   },
   {
-    id: '@deepseek-ai/dsh-schedule#schedule/delete',
+    id: '@deepseek-ai/dsh-schedule#schedule/create',
     ns: 'schedule',
-    method: 'delete',
+    method: 'create',
     shape: ArgsShape.REQUEST,
     params: ['request'],
     stream: false,
     cancellable: true,
-    source: '',
+    source: 'packages/schedule/schedule/src/index.ts:363',
+    capability: '',
+    capabilities: []
+  },
+  {
+    id: '@deepseek-ai/dsh-schedule#schedule/deleteInactive',
+    ns: 'schedule',
+    method: 'deleteInactive',
+    shape: ArgsShape.NONE,
+    params: [],
+    stream: false,
+    cancellable: false,
+    source: 'packages/schedule/schedule/src/index.ts:520',
+    capability: '',
+    capabilities: []
+  },
+  {
+    id: '@deepseek-ai/dsh-schedule#schedule/deliveryLimits',
+    ns: 'schedule',
+    method: 'deliveryLimits',
+    shape: ArgsShape.NONE,
+    params: [],
+    stream: false,
+    cancellable: false,
+    source: 'packages/schedule/schedule/src/index.ts:352',
+    capability: '',
+    capabilities: []
+  },
+  {
+    id: '@deepseek-ai/dsh-schedule#schedule/edit',
+    ns: 'schedule',
+    method: 'edit',
+    shape: ArgsShape.REQUEST,
+    params: ['request'],
+    stream: false,
+    cancellable: true,
+    source: 'packages/schedule/schedule/src/index.ts:537',
     capability: '',
     capabilities: []
   },
@@ -915,7 +1035,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['request'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/schedule/schedule/src/index.ts:478',
     capability: '',
     capabilities: []
   },
@@ -927,19 +1047,31 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['request'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/schedule/schedule/src/index.ts:428',
     capability: '',
     capabilities: []
   },
   {
-    id: '@deepseek-ai/dsh-schedule#schedule/update',
+    id: '@deepseek-ai/dsh-schedule#schedule/run',
     ns: 'schedule',
-    method: 'update',
+    method: 'run',
     shape: ArgsShape.REQUEST,
     params: ['request'],
     stream: false,
     cancellable: true,
-    source: '',
+    source: 'packages/schedule/schedule/src/index.ts:495',
+    capability: '',
+    capabilities: []
+  },
+  {
+    id: '@deepseek-ai/dsh-schedule#schedule/view',
+    ns: 'schedule',
+    method: 'view',
+    shape: ArgsShape.REQUEST,
+    params: ['request'],
+    stream: false,
+    cancellable: false,
+    source: 'packages/schedule/schedule/src/index.ts:451',
     capability: '',
     capabilities: []
   },
@@ -951,7 +1083,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['request'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/api/session-controller/src/index.ts:497',
     capability: '',
     capabilities: []
   },
@@ -963,7 +1095,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['request'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/api/session-controller/src/index.ts:517',
     capability: 'sessions',
     capabilities: ['sessions']
   },
@@ -975,7 +1107,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: [],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/api/session-controller/src/index.ts:350',
     capability: 'workspaces',
     capabilities: ['workspaces']
   },
@@ -987,7 +1119,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: [],
     stream: true,
     cancellable: true,
-    source: '',
+    source: 'packages/api/session-controller/src/index.ts:628',
     capability: 'approvals',
     capabilities: ['approvals']
   },
@@ -999,9 +1131,21 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['request'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/api/session-controller/src/index.ts:304',
     capability: 'sessions',
     capabilities: ['sessions']
+  },
+  {
+    id: '@deepseek-ai/dsh-api-session-controller#session/events',
+    ns: 'session',
+    method: 'events',
+    shape: ArgsShape.REQUEST,
+    params: ['request'],
+    stream: false,
+    cancellable: true,
+    source: 'packages/api/session-controller/src/index.ts:540',
+    capability: '',
+    capabilities: []
   },
   {
     id: '@deepseek-ai/dsh-api-session-controller#session/follow',
@@ -1011,7 +1155,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['request'],
     stream: true,
     cancellable: true,
-    source: '',
+    source: 'packages/api/session-controller/src/index.ts:607',
     capability: 'sessions',
     capabilities: ['sessions']
   },
@@ -1023,7 +1167,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['request'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/api/session-controller/src/index.ts:446',
     capability: 'sessions',
     capabilities: ['sessions']
   },
@@ -1035,7 +1179,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: [],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/api/session-controller/src/index.ts:323',
     capability: '',
     capabilities: []
   },
@@ -1047,7 +1191,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['_request'],
     stream: false,
     cancellable: true,
-    source: '',
+    source: 'packages/api/session-controller/src/index.ts:279',
     capability: 'sessions',
     capabilities: ['sessions']
   },
@@ -1059,9 +1203,45 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: [],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/api/session-controller/src/index.ts:341',
     capability: 'sessions',
     capabilities: ['sessions', 'settings']
+  },
+  {
+    id: '@deepseek-ai/dsh-api-session-controller#session/observeEvent',
+    ns: 'session',
+    method: 'observeEvent',
+    shape: ArgsShape.REQUEST,
+    params: ['request'],
+    stream: true,
+    cancellable: true,
+    source: 'packages/api/session-controller/src/index.ts:551',
+    capability: '',
+    capabilities: []
+  },
+  {
+    id: '@deepseek-ai/dsh-api-session-controller#session/observeProjections',
+    ns: 'session',
+    method: 'observeProjections',
+    shape: ArgsShape.REQUEST,
+    params: ['request'],
+    stream: true,
+    cancellable: true,
+    source: 'packages/api/session-controller/src/index.ts:562',
+    capability: '',
+    capabilities: []
+  },
+  {
+    id: '@deepseek-ai/dsh-api-session-controller#session/observeState',
+    ns: 'session',
+    method: 'observeState',
+    shape: ArgsShape.REQUEST,
+    params: ['request'],
+    stream: true,
+    cancellable: true,
+    source: 'packages/api/session-controller/src/index.ts:584',
+    capability: '',
+    capabilities: []
   },
   {
     id: '@deepseek-ai/dsh-api-session-controller#session/openWorkspacePath',
@@ -1071,7 +1251,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['request'],
     stream: false,
     cancellable: true,
-    source: '',
+    source: 'packages/api/session-controller/src/index.ts:371',
     capability: '',
     capabilities: []
   },
@@ -1083,7 +1263,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['request'],
     stream: false,
     cancellable: true,
-    source: '',
+    source: 'packages/api/session-controller/src/index.ts:529',
     capability: 'sessions',
     capabilities: ['sessions']
   },
@@ -1095,7 +1275,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['request'],
     stream: false,
     cancellable: true,
-    source: '',
+    source: 'packages/api/session-controller/src/index.ts:618',
     capability: '',
     capabilities: []
   },
@@ -1107,7 +1287,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['request'],
     stream: false,
     cancellable: true,
-    source: '',
+    source: 'packages/api/session-controller/src/index.ts:465',
     capability: 'approvals',
     capabilities: ['approvals', 'sessions']
   },
@@ -1119,7 +1299,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['request'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/api/session-controller/src/index.ts:434',
     capability: 'sessions',
     capabilities: ['sessions']
   },
@@ -1131,7 +1311,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['request'],
     stream: false,
     cancellable: true,
-    source: '',
+    source: 'packages/api/session-controller/src/index.ts:293',
     capability: 'sessions',
     capabilities: ['sessions']
   },
@@ -1143,9 +1323,21 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['request'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/api/session-controller/src/index.ts:314',
     capability: 'sessions',
     capabilities: ['sessions']
+  },
+  {
+    id: '@deepseek-ai/dsh-api-session-controller#session/state',
+    ns: 'session',
+    method: 'state',
+    shape: ArgsShape.REQUEST,
+    params: ['request'],
+    stream: false,
+    cancellable: true,
+    source: 'packages/api/session-controller/src/index.ts:573',
+    capability: '',
+    capabilities: []
   },
   {
     id: '@deepseek-ai/dsh-api-session-controller#session/updateQueue',
@@ -1155,9 +1347,21 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['request'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/api/session-controller/src/index.ts:507',
     capability: 'sessions',
     capabilities: ['sessions']
+  },
+  {
+    id: '@deepseek-ai/dsh-api-session-controller#session/wait',
+    ns: 'session',
+    method: 'wait',
+    shape: ArgsShape.REQUEST,
+    params: ['request'],
+    stream: false,
+    cancellable: true,
+    source: 'packages/api/session-controller/src/index.ts:595',
+    capability: '',
+    capabilities: []
   },
   {
     id: '@deepseek-ai/dsh-api-session-controller#session/workspacePathApplications',
@@ -1167,7 +1371,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['request'],
     stream: false,
     cancellable: true,
-    source: '',
+    source: 'packages/api/session-controller/src/index.ts:401',
     capability: '',
     capabilities: []
   },
@@ -1179,7 +1383,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['request'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/feedback/command-feedback/src/index.ts:102',
     capability: 'sessionFeedback',
     capabilities: ['sessionFeedback']
   },
@@ -1191,7 +1395,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['agentId', 'query'],
     stream: false,
     cancellable: true,
-    source: '',
+    source: 'packages/context/session-reference/src/index.ts:282',
     capability: '',
     capabilities: []
   },
@@ -1203,7 +1407,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: [],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/api/settings-controller/src/index.ts:98',
     capability: 'settings',
     capabilities: ['settings']
   },
@@ -1215,7 +1419,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['ns', 'ops', 'expectedRevision'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/api/settings-controller/src/index.ts:152',
     capability: 'settings',
     capabilities: ['settings']
   },
@@ -1227,7 +1431,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: [],
     stream: false,
     cancellable: true,
-    source: '',
+    source: 'packages/api/settings-controller/src/index.ts:167',
     capability: '',
     capabilities: []
   },
@@ -1239,7 +1443,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['ns', 'section', 'expectedRevision'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/api/settings-controller/src/index.ts:133',
     capability: 'settings',
     capabilities: ['settings']
   },
@@ -1251,7 +1455,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['ns', 'patch', 'expectedRevision'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/api/settings-controller/src/index.ts:116',
     capability: 'settings',
     capabilities: ['settings']
   },
@@ -1263,81 +1467,9 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['request'],
     stream: false,
     cancellable: true,
-    source: '',
+    source: 'packages/api/session-controller/src/skill-catalog.ts:36',
     capability: 'skills',
     capabilities: ['skills']
-  },
-  {
-    id: '@deepseek-ai/dsh-experimental-api-speech-to-text#speech/cancelPreparation',
-    ns: 'speech',
-    method: 'cancelPreparation',
-    shape: ArgsShape.NAMED,
-    params: ['providerId'],
-    stream: false,
-    cancellable: false,
-    source: '',
-    capability: '',
-    capabilities: []
-  },
-  {
-    id: '@deepseek-ai/dsh-experimental-api-speech-to-text#speech/catalog',
-    ns: 'speech',
-    method: 'catalog',
-    shape: ArgsShape.NONE,
-    params: [],
-    stream: false,
-    cancellable: false,
-    source: '',
-    capability: '',
-    capabilities: []
-  },
-  {
-    id: '@deepseek-ai/dsh-experimental-api-speech-to-text#speech/configure',
-    ns: 'speech',
-    method: 'configure',
-    shape: ArgsShape.NAMED,
-    params: ['patch'],
-    stream: false,
-    cancellable: false,
-    source: '',
-    capability: '',
-    capabilities: []
-  },
-  {
-    id: '@deepseek-ai/dsh-experimental-api-speech-to-text#speech/follow',
-    ns: 'speech',
-    method: 'follow',
-    shape: ArgsShape.NONE,
-    params: [],
-    stream: true,
-    cancellable: true,
-    source: '',
-    capability: '',
-    capabilities: []
-  },
-  {
-    id: '@deepseek-ai/dsh-experimental-api-speech-to-text#speech/prepare',
-    ns: 'speech',
-    method: 'prepare',
-    shape: ArgsShape.NAMED,
-    params: ['providerId', 'options'],
-    stream: false,
-    cancellable: false,
-    source: '',
-    capability: '',
-    capabilities: []
-  },
-  {
-    id: '@deepseek-ai/dsh-experimental-api-speech-to-text#speech/transcribe',
-    ns: 'speech',
-    method: 'transcribe',
-    shape: ArgsShape.REQUEST,
-    params: ['request'],
-    stream: false,
-    cancellable: true,
-    source: '',
-    capability: '',
-    capabilities: []
   },
   {
     id: '@deepseek-ai/dsh-subagent#subagents/interruptByParent',
@@ -1347,7 +1479,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['childSessionId', 'parentSessionId', 'mode'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/subagent/subagent/src/index.ts:519',
     capability: 'subagents',
     capabilities: ['subagents']
   },
@@ -1359,9 +1491,21 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['request'],
     stream: false,
     cancellable: true,
-    source: '',
+    source: 'packages/subagent/subagent/src/index.ts:450',
     capability: 'subagents',
     capabilities: ['subagents']
+  },
+  {
+    id: '@deepseek-ai/dsh-api-terminal-controller#terminal/attach',
+    ns: 'terminal',
+    method: 'attach',
+    shape: ArgsShape.NAMED,
+    params: ['agentId', 'id'],
+    stream: true,
+    cancellable: true,
+    source: 'packages/api/terminal-controller/src/index.ts:216',
+    capability: '',
+    capabilities: []
   },
   {
     id: '@deepseek-ai/dsh-api-terminal-controller#terminal/close',
@@ -1371,7 +1515,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['agentId', 'id'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/api/terminal-controller/src/index.ts:241',
     capability: '',
     capabilities: []
   },
@@ -1383,7 +1527,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['agentId', 'request'],
     stream: false,
     cancellable: true,
-    source: '',
+    source: 'packages/api/terminal-controller/src/index.ts:159',
     capability: '',
     capabilities: []
   },
@@ -1395,19 +1539,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['agentId'],
     stream: false,
     cancellable: true,
-    source: '',
-    capability: '',
-    capabilities: []
-  },
-  {
-    id: '@deepseek-ai/dsh-api-terminal-controller#terminal/follow',
-    ns: 'terminal',
-    method: 'follow',
-    shape: ArgsShape.NAMED,
-    params: ['agentId', 'id', 'attachmentId'],
-    stream: true,
-    cancellable: true,
-    source: '',
+    source: 'packages/api/terminal-controller/src/index.ts:119',
     capability: '',
     capabilities: []
   },
@@ -1419,7 +1551,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['sessionId'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/api/terminal-controller/src/index.ts:145',
     capability: '',
     capabilities: []
   },
@@ -1431,19 +1563,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['agentId', 'id', 'title'],
     stream: false,
     cancellable: false,
-    source: '',
-    capability: '',
-    capabilities: []
-  },
-  {
-    id: '@deepseek-ai/dsh-api-terminal-controller#terminal/resize',
-    ns: 'terminal',
-    method: 'resize',
-    shape: ArgsShape.NAMED,
-    params: ['agentId', 'id', 'attachmentId', 'cols', 'rows'],
-    stream: false,
-    cancellable: false,
-    source: '',
+    source: 'packages/api/terminal-controller/src/index.ts:229',
     capability: '',
     capabilities: []
   },
@@ -1455,7 +1575,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['sessionId', 'id'],
     stream: true,
     cancellable: true,
-    source: '',
+    source: 'packages/api/terminal-controller/src/index.ts:199',
     capability: '',
     capabilities: []
   },
@@ -1467,19 +1587,19 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['agentId'],
     stream: false,
     cancellable: true,
-    source: '',
+    source: 'packages/api/terminal-controller/src/index.ts:134',
     capability: '',
     capabilities: []
   },
   {
-    id: '@deepseek-ai/dsh-api-terminal-controller#terminal/write',
-    ns: 'terminal',
-    method: 'write',
-    shape: ArgsShape.NAMED,
-    params: ['agentId', 'id', 'attachmentId', 'data'],
-    stream: false,
-    cancellable: false,
-    source: '',
+    id: '@deepseek-ai/dsh-client-ui-trajectory#toolResults/watch',
+    ns: 'toolResults',
+    method: 'watch',
+    shape: ArgsShape.REQUEST,
+    params: ['request'],
+    stream: true,
+    cancellable: true,
+    source: 'packages/client/ui-trajectory/src/index.ts:106',
     capability: '',
     capabilities: []
   },
@@ -1491,7 +1611,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['agentId', 'callId', 'answer'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/interaction/user-questions/src/index.ts:170',
     capability: '',
     capabilities: []
   },
@@ -1503,7 +1623,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['agentId', 'callId'],
     stream: true,
     cancellable: true,
-    source: '',
+    source: 'packages/interaction/user-questions/src/index.ts:221',
     capability: '',
     capabilities: []
   },
@@ -1515,7 +1635,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['request'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/api/workspace-controller/src/index.ts:160',
     capability: '',
     capabilities: []
   },
@@ -1527,7 +1647,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['request'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/api/workspace-controller/src/index.ts:91',
     capability: 'workspaces',
     capabilities: ['workspaces']
   },
@@ -1539,7 +1659,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['request'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/api/workspace-controller/src/index.ts:130',
     capability: 'workspaces',
     capabilities: ['workspaces']
   },
@@ -1551,7 +1671,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: [],
     stream: true,
     cancellable: true,
-    source: '',
+    source: 'packages/api/workspace-controller/src/index.ts:206',
     capability: 'workspaces',
     capabilities: ['workspaces']
   },
@@ -1563,7 +1683,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: [],
     stream: false,
     cancellable: true,
-    source: '',
+    source: 'packages/api/workspace-controller/src/index.ts:104',
     capability: '',
     capabilities: []
   },
@@ -1575,7 +1695,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['request'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/api/workspace-controller/src/index.ts:140',
     capability: '',
     capabilities: []
   },
@@ -1587,7 +1707,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['request'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/api/workspace-controller/src/index.ts:150',
     capability: '',
     capabilities: []
   },
@@ -1599,7 +1719,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['request'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/api/workspace-controller/src/index.ts:180',
     capability: '',
     capabilities: []
   },
@@ -1611,7 +1731,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['request'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/api/workspace-controller/src/index.ts:120',
     capability: 'workspaces',
     capabilities: ['workspaces']
   },
@@ -1623,7 +1743,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['request'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/api/workspace-controller/src/index.ts:170',
     capability: '',
     capabilities: []
   },
@@ -1635,7 +1755,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['request'],
     stream: false,
     cancellable: false,
-    source: '',
+    source: 'packages/api/workspace-controller/src/index.ts:190',
     capability: '',
     capabilities: []
   },
@@ -1647,7 +1767,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['workspaceFileScopeId', 'path'],
     stream: true,
     cancellable: true,
-    source: '',
+    source: 'packages/api/workspace-files/src/index.ts:341',
     capability: 'workspaceFiles',
     capabilities: ['workspaceFiles']
   },
@@ -1659,7 +1779,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['workspaceFileScopeId', 'path'],
     stream: false,
     cancellable: true,
-    source: '',
+    source: 'packages/api/workspace-files/src/index.ts:304',
     capability: 'workspaceFiles',
     capabilities: ['workspaceFiles']
   },
@@ -1671,7 +1791,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['workspaceFileScopeId', 'path', 'range'],
     stream: false,
     cancellable: true,
-    source: '',
+    source: 'packages/api/workspace-files/src/index.ts:234',
     capability: 'workspaceFiles',
     capabilities: ['workspaceFiles']
   },
@@ -1683,7 +1803,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['workspaceFileScopeId', 'path', 'options'],
     stream: false,
     cancellable: true,
-    source: '',
+    source: 'packages/api/workspace-files/src/index.ts:258',
     capability: 'workspaceFiles',
     capabilities: ['workspaceFiles']
   },
@@ -1695,7 +1815,7 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['workspaceFileScopeId', 'path'],
     stream: false,
     cancellable: true,
-    source: '',
+    source: 'packages/api/workspace-files/src/index.ts:291',
     capability: 'workspaceFiles',
     capabilities: ['workspaceFiles']
   },

@@ -99,8 +99,22 @@ export interface VersionCheck {
  *                 `.research/` 已被 `.gitignore` 排除；`endpointCount: 140`）+
  *                 `DSH_CONTRACTS=<新契约> DSH_VERSION=0.2.1-alpha.1 node tools/compat-drift.mjs`
  *                 实跑 **exit=0「无漂移」**（跨版本比对，未先动默认快照）。
+ *   0.2.2-rc.1 —— 端侧当前基线（150 端点，2026-11-05 采集）。
+ *                 相对 0.2.1-alpha.1（140）：+16 / −9，另有一批契约变化；关键：
+ *                 · 新增 `session/{events,observeEvent,observeProjections,observeState,state,wait}`、
+ *                   `pluginManager/{listVersions,readBundleDetail,updateBundle}`、`pluginMarket/*`（4）、
+ *                   `terminal/attach`、`toolResults/watch`、`schedule/deleteInactive`；
+ *                 · 移除 `speech/*`（6）、`terminal/{follow,resize,write}`；
+ *                 · 相对已上机的 0.2.2-alpha.2（147）只差 schedule 域：+5
+ *                   （`schedule/{create,deliveryLimits,edit,run,view}`）−2（`schedule/{delete,update}`），
+ *                   外加 `schedule/{catalog,list,history}` 与 `session/observeProjections` 的
+ *                   **参数/流载荷形状**变化（Whale 自有代码不调用 schedule，仅基线需同步）。
+ *                 ⇒ 本次升级只需重生成上表 + 更新矩阵，**不动调用代码与能力映射**。
+ *                 证据：`contracts-0.2.2-rc.1.json`（150 端点）+ 漂移门禁 exit=0；
+ *                 反向负测试：用 alpha.2 契约跑门禁 exit=1。
  */
 const SUPPORTED_VERSIONS: string[] = [
+  '0.2.2-rc.1',
   '0.2.1-alpha.1',
   '0.2.0-rc.2',
   '0.2.0-rc.1',

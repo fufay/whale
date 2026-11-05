@@ -2704,11 +2704,59 @@ function patchFsLocalLink() {
 \t\t\t\t}
 \t\t\t}
 \t\t}`;
-  if (!text.includes(before)) {
-    die('fs-local 补丁：上游 writeFileAtomic 的 createIfAbsent 发布段已变化（未找到待替换片段），拒绝静默跳过');
+  /*
+   * 2026-11-05（升 0.2.2-rc.1）：上游把 `writeFileAtomic` 的 `createIfAbsent` **形参**改成了
+   * `options` 对象（`options.createIfAbsent` / `displayPath` / `existingDestination`）。
+   * 语义相同、形状不同 ⇒ 两种形状都认（先新后旧），都不中才 die
+   * （升级手册：上游改结构必须在打包期当场暴露，不许静默跳过）。
+   */
+  const beforeOptions = `\t\tif (options.createIfAbsent) try {
+\t\t\tawait linkFile(tempPath, absolutePath);
+\t\t} catch (error) {
+\t\t\tawait throwGuardedCreateFailure(error, absolutePath, displayPath, inspectPublicationTarget);
+\t\t}`;
+  const afterOptions = `\t\tif (options.createIfAbsent) {
+\t\t\t/*
+\t\t\t * 【DSHM 端侧补丁 2026-09-26（DSHM_FS_LOCAL_SANDBOX）】原为 link(tempPath, absolutePath)
+\t\t\t * 做 no-clobber 发布（目标已存在则 EEXIST）。鸿蒙沙箱**禁硬链接**（EPERM/EACCES），
+\t\t\t * 于是"模型在工作区新建文件"整条失败（真机实证：write 工具报 EPERM link）。
+\t\t\t * 回退策略：链接类错误且目标**确实不存在**时，改用 rename 发布——同一文件系统上
+\t\t\t * rename 是原子的，且此刻目标不存在，语义等价（no-clobber 的保证由前置检查维持）。
+\t\t\t * 目标已存在（EEXIST）仍按原逻辑抛"已存在"，不静默覆盖。
+\t\t\t */
+\t\t\ttry {
+\t\t\t\tawait linkFile(tempPath, absolutePath);
+\t\t\t} catch (error) {
+\t\t\t\tconst code = error && error.code;
+\t\t\t\tconst linkUnsupported = code === "EPERM" || code === "EACCES"
+\t\t\t\t\t|| code === "ENOTSUP" || code === "EOPNOTSUPP" || code === "EXDEV";
+\t\t\t\tif (!linkUnsupported) {
+\t\t\t\t\tawait throwGuardedCreateFailure(error, absolutePath, displayPath, inspectPublicationTarget);
+\t\t\t\t} else {
+\t\t\t\t\tlet exists = true;
+\t\t\t\t\ttry {
+\t\t\t\t\t\tawait inspectPublicationTarget(absolutePath);
+\t\t\t\t\t} catch (_absent) {
+\t\t\t\t\t\texists = false;
+\t\t\t\t\t}
+\t\t\t\t\tif (exists) {
+\t\t\t\t\t\tawait throwGuardedCreateFailure(error, absolutePath, displayPath, inspectPublicationTarget);
+\t\t\t\t\t} else {
+\t\t\t\t\t\tawait rename(tempPath, absolutePath);
+\t\t\t\t\t}
+\t\t\t\t}
+\t\t\t}
+\t\t}`;
+  const variants = [
+    { before: beforeOptions, after: afterOptions, note: 'options 对象形态（0.2.2-rc.1 起）' },
+    { before, after, note: 'createIfAbsent 形参形态（≤0.2.2-alpha.2）' },
+  ];
+  const hit = variants.find((v) => text.includes(v.before));
+  if (hit === void 0) {
+    die('fs-local 补丁：上游 writeFileAtomic 的 link 发布段两种形态都未命中（createIfAbsent 形参 / options 对象），拒绝静默跳过');
   }
-  writeFileSync(target, text.replace(before, after), 'utf8');
-  log('[pack-core]   fs-local 补丁：createIfAbsent 发布 link→rename 回退（鸿蒙禁硬链接）');
+  writeFileSync(target, text.replace(hit.before, hit.after), 'utf8');
+  log(`[pack-core]   fs-local 补丁：link→rename 回退（鸿蒙禁硬链接；命中 ${hit.note}）`);
 }
 
 
