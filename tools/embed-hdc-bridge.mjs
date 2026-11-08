@@ -27,13 +27,24 @@ const ROOT = resolve(HERE, '..');
 const SRC = resolve(ROOT, '..', 'dsh-hdc-bridge');
 const OUT = join(ROOT, 'hostcore', 'app', 'hdc-bridge-assets.js');
 
-/** 随 HAP 分发的桥资产（不含 keys/、不含文档、不含 .bak）。 */
-const FILES = ['bridge.sh', 'fakecred.py', 'scanports.py', 'shim.c'];
+/*
+ * 随 HAP 分发的桥资产（不含 keys/、不含文档、不含 .bak）。
+ *
+ * 2026-11-08 起包含 **预编译 `shim.so`**（aarch64/musl，与设备现场编译字节相同）：
+ * 干净设备没有 clang 也能起桥；`bridge.sh` 优先拷贝这个预编译件，只有在它缺失/源码更新
+ * 时才回退 clang 现场编译。二进制以 base64 内嵌（`{ encoding: 'base64', data }`）。
+ */
+const FILES = ['bridge.sh', 'fakecred.py', 'scanports.py', 'shim.c', 'shim.so'];
+const BINARY = new Set(['shim.so']);
 
 const entries = [];
 for (const name of FILES) {
-  const text = readFileSync(join(SRC, name), 'utf8');
-  entries.push(`  ${JSON.stringify(name)}: ${JSON.stringify(text)}`);
+  const buf = readFileSync(join(SRC, name));
+  if (BINARY.has(name)) {
+    entries.push(`  ${JSON.stringify(name)}: { encoding: 'base64', data: '${buf.toString('base64')}' }`);
+  } else {
+    entries.push(`  ${JSON.stringify(name)}: ${JSON.stringify(buf.toString('utf8'))}`);
+  }
 }
 
 const header = `'use strict';

@@ -64,6 +64,15 @@ function readOrNull(p) {
   }
 }
 
+/** 二进制资产（如预编译 shim.so）按字节读；失败返回 null。 */
+function readBufferOrNull(p) {
+  try {
+    return fs.readFileSync(p);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * 把随包的内嵌资产同步到 `$HOME/.hdc-bridge/src/`。
  * @returns {number} 内容有变化（或新写入）的文件数
@@ -73,9 +82,15 @@ function syncAssets(srcDir) {
   let changed = 0;
   for (const name of Object.keys(ASSETS)) {
     const target = path.join(srcDir, name);
-    const text = ASSETS[name];
-    if (readOrNull(target) !== text) {
-      fs.writeFileSync(target, text, { mode: 0o755 });
+    const value = ASSETS[name];
+    // 二进制资产：{ encoding: 'base64', data }（2026-11-08 起 shim.so 随包，干净设备无 clang 也能起桥）
+    const isBinary = value !== null && typeof value === 'object' && value.encoding === 'base64';
+    const want = isBinary ? Buffer.from(value.data, 'base64') : value;
+    const same = isBinary
+      ? (() => { const cur = readBufferOrNull(target); return cur !== null && cur.equals(want); })()
+      : readOrNull(target) === want;
+    if (!same) {
+      fs.writeFileSync(target, want, { mode: 0o755 });
       changed += 1;
     }
   }

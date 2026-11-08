@@ -143,6 +143,60 @@ export PATH=/storage/Users/currentUser/.harmonybrew/bin:$PATH
 sh tools/office2pdf/build-capi.sh /path/to/office2pdf
 ```
 
+### 2.6 自行构建后：内部 hdc 桥怎么用（UI 自动化 / 装机调试）
+
+Whale 自带一条「应用沙箱内的 hdc 桥」：把系统的 hdc 客户端接到本机，让宿主里的工具
+（以及内置的 `screen-pilot` UI 自动化插件）能直接 `hdc shell` / `hdc install`。
+**它不是 dsh 插件，也不是本仓库外某个目录的依赖**——桥的 5 个资产（`bridge.sh`、`fakecred.py`、
+`scanports.py`、`shim.c`、预编译 `shim.so`）已经内嵌进 HAP（`resources/resfile/resources/app/hdc-bridge-assets.js`），
+Host 启动时会把它们同步到应用沙箱 `$HOME/.hdc-bridge/src/`。
+
+**你需要做的只有两件**（不需要 clang，不需要手动拷脚本）：
+
+1. 设备上打开 **设置 → 开发者选项 → 无线调试**（端口每次开机/换网会变，桥会自动读
+   `param get persist.hdc.port` 跟上；首次连接设备会弹一次调试授权，确认后免二次）；
+2. 用起来。三种方式任选：
+
+```sh
+# ① 一次性手动起桥（首次/桥状态不明时）
+sh $HOME/.hdc-bridge/src/bridge.sh
+
+# ② 直接用包装脚本（每天用这个；还没起桥时它会自己修）
+hdcb list targets      # 期望输出：127.0.0.1:<端口>
+hdcb shell id          # 期望：uid=2000(shell)
+hdcb install -r xxx.hap
+
+# ③ 什么都不敲：直接用 UI 自动化工具（screen-pilot 在连不上时会自己跑一次 bridge.sh 再重试）
+```
+
+**为什么不需要 clang**：从 2026-11-08 起，HAP 内嵌了 **aarch64/musl 的预编译 `shim.so`**
+（与设备现场编译的字节相同），`bridge.sh` 优先拷贝它；只有你自己改了 `shim.c` 并想重新编译时，
+才需要设备上有 `clang`（此时会回退到现场编译）。
+
+**源码改动后要同步内嵌资产**（只改 `Common/dsh-hdc-bridge/` 不会自动生效）：
+
+```sh
+node tools/embed-hdc-bridge.mjs        # 重新生成 hostcore/app/hdc-bridge-assets.js
+node tools/check-hdc-bridge-embed.mjs  # 门禁：内嵌内容必须与源码一致（含 shim.so 的 base64）
+node tools/place-host-app.mjs          # 把 hostcore/app/*.js 放进 HAP
+```
+
+**排查入口**（都在应用沙箱里）：
+
+| 文件 | 看什么 |
+|---|---|
+| `$HOME/.hdc-bridge/bridge.log` | 桥部署/重建过程 |
+| `$HOME/.hdc-bridge/server.log` | `hdc -m` server 的原始输出 |
+| `$HOME/tmp/bindlog.txt` | shim 是否真的拦到了 bind/connect |
+| `$HOME/tmp/hdcb-err.log` | 每次 `hdcb` 调用的端口探测/连接结果 |
+| `$HOME/tmp/credlog.txt` | 凭据握手（fakecred） |
+
+开关：`DSHM_HDC_BRIDGE=0` 整体关桥；`DSHM_HDC_BRIDGE_REPAIR=1` 让 Host 启动时就修复
+（默认延迟到首次使用，规避 2026-11-04 的启动冻死事故，见 [`docs/133`](docs/133-hdc桥v3（UI自动化卡死根因）.md)）。
+
+> 说明：`$HOME` 是**应用 files 目录**（沙箱），不是 `$DSH_HOME`；卸载/清数据会丢桥产物，
+> 下次启动自动重建。`keys/`（调试授权私钥）**有意不随包**，所以每台新设备首次要确认一次授权。
+
 ## 三、目录结构
 
 | 路径 | 内容 |

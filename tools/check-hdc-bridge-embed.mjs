@@ -22,7 +22,9 @@ const SRC = process.env.DSH_HDC_BRIDGE_SRC
   : resolve(ROOT, '..', 'dsh-hdc-bridge');
 const ASSETS_JS = join(ROOT, 'hostcore', 'app', 'hdc-bridge-assets.js');
 /** 必须内嵌的资产（与 tools/embed-hdc-bridge.mjs 的 FILES 一致）。 */
-const FILES = ['bridge.sh', 'fakecred.py', 'scanports.py', 'shim.c'];
+const FILES = ['bridge.sh', 'fakecred.py', 'scanports.py', 'shim.c', 'shim.so'];
+/** 二进制资产：base64 内嵌（与 tools/embed-hdc-bridge.mjs 的 BINARY 一致）。 */
+const BINARY = new Set(['shim.so']);
 
 if (!existsSync(SRC)) {
   console.error(`前置缺失：找不到桥源码目录 ${SRC}（可用 DSH_HDC_BRIDGE_SRC 覆盖）`);
@@ -63,11 +65,24 @@ for (const name of FILES) {
     fails.push(`源码缺文件：${srcPath}`);
     continue;
   }
-  const srcText = readFileSync(srcPath, 'utf8');
-  if (typeof assets[name] !== 'string') {
-    fails.push(`未内嵌：${name}`);
-  } else if (assets[name] !== srcText) {
-    fails.push(`内容漂移：${name}（源码 ${srcText.length} B ≠ 内嵌 ${assets[name].length} B）`);
+  if (BINARY.has(name)) {
+    const srcBuf = readFileSync(srcPath);
+    const value = assets[name];
+    if (value === null || typeof value !== 'object' || value.encoding !== 'base64') {
+      fails.push(`未内嵌（二进制应按 base64 形式）：${name}`);
+    } else {
+      const embedded = Buffer.from(value.data, 'base64');
+      if (!embedded.equals(srcBuf)) {
+        fails.push(`内容漂移：${name}（源码 ${srcBuf.length} B ≠ 内嵌 ${embedded.length} B）`);
+      }
+    }
+  } else {
+    const srcText = readFileSync(srcPath, 'utf8');
+    if (typeof assets[name] !== 'string') {
+      fails.push(`未内嵌：${name}`);
+    } else if (assets[name] !== srcText) {
+      fails.push(`内容漂移：${name}（源码 ${srcText.length} B ≠ 内嵌 ${assets[name].length} B）`);
+    }
   }
 }
 
