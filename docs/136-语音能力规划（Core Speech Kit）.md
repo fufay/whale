@@ -3,7 +3,7 @@
 | 项 | 内容 |
 |---|---|
 | 日期 | 2026-11-12 |
-| 状态 | **规划稿（未实施）** |
+| 状态 | **搁置（2026-11-12 用户决定：收益不大，暂不投入）** —— 规划保留，供日后启用时直接照 M0 起步 |
 | 目标 | ASR 主线切到系统 Core Speech Kit（离线/中文），去掉 SenseVoice 与 230 MB 模型下载；解决长语音；可选 TTS |
 | 关联 | `entry/src/main/ets/speech/HmsSpeechBridge.ets`、`SenseVoiceRecognizer.ets`、`hostcore/speech-provider/index.js`、`hostcore/speech-models/index.js`、`tools/pack-core.mjs`（`patchSensevoiceForHms`） |
 

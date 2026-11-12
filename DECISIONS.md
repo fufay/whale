@@ -33,6 +33,8 @@
 
 | D-024 | 2026-11-12 | **本机验证与发布彻底分工**：发布件 `v1.1.N` / `versionCode 10100N`（未签名 HAP，侧载或用户自建源码）；本机验证件由 `tools/build-verify-hap.sh` 自动读**设备已装 versionCode** 出包并覆盖安装（`hdc install -r` 默认授权）；**不做 release 签名、不上架**；发布件上传/卸载/清数据/回滚仍需先问 | 无 ACL 调试 Profile 下 versionCode 升级安装必被 ACL 校验挡住（D-023 更正），`hdc uninstall -k` 又会动用户数据；因此本机永远用同 versionCode 覆盖装。把"读已装号→出包→装→核对核心树"固化成脚本后，不再逐次讨论版本号或请示装机，也避免每次发版手工出两份包。用户明确：仅本机自用 + 发布未签名侧载包/源码，不走 AGC release 签名/上架 | `AGENTS.md`「出包与本机验证」；`tools/build-verify-hap.sh`；`docs/125` §八/§九；D-023 相关结论保留 |
 
+| D-025 | 2026-11-12 | **语音功能搁置**：不接 Speech Kit 改造，保持现状（SenseVoice 优先 + Core Speech Kit 兜底，v1.1.8 已随包）；不再主动推进、不再评估 230 MB 模型/17.4 MB 原生库的体积收益；规划留存 `docs/136`，日后要启用按其 M0 能力探测起步 | 用户看过官方 dsh desktop：语音能力本质是"语音输入代替打字"，对 WhaleX 收益不大；而改造需先解决 Speech Kit 长语音 VAD 截断（实测 4–5 s），再删 SenseVoice 与原生库，投入/风险与收益不匹配。现状可用（SenseVoice 离线批处理 + 短期兜底）⇒ 先不动 | `docs/136`（状态=搁置）；`HANDOFF.md` §0.8 |
+
 ## 追加格式
 
 ```text

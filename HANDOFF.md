@@ -9,6 +9,13 @@
 **核心树口径**：以 `hostcore/core-recipe.json` 为准，当前读数 **`0.2.2-rc.2+whale.1`**（2026-11-12 换核，见 §0.6/§0.7）
 **签名口径**：开发包默认用 365 天无 ACL 调试 Profile（`dist/signing/dev-profile/whale-dev-debug.p7b`，见 `docs/125` §八）
 
+## 0.8 2026-11-12：语音功能**搁置**（D-025）
+
+- 用户看过官方 dsh desktop：语音 ≈「语音输入代替打字」，对 WhaleX 收益不大 ⇒ **不接 Speech Kit 改造**，保持现状
+  （SenseVoice 优先 + Core Speech Kit 兜底，已随 v1.1.8 发布），不删 230 MB 模型链、不删 17.4 MB onnx/sherpa 原生库。
+- 规划留档：`docs/136-语音能力规划（Core Speech Kit）.md`（状态=搁置；日后启用直接按其 M0 能力探测起步）。
+- ⇒ 后续发版/冒烟**不再把语音列为待办**；除非用户重新提出。
+
 ## 0.7 2026-11-12（v1.1.8）：rg 改为构建期自签名（补 rc.2 的 grep/glob 缺口）
 
 - 背景：rc.2 把 rg 执行迁到 `@deepseek-ai/dsh-util-ripgrep`，旧 34 KB find/grep 降级整段失效（v1.1.7 的已知缺口）。
