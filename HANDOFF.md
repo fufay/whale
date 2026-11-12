@@ -3,11 +3,28 @@
 > **这是当前状态，不是规则。** 规则看 `AGENTS.md`；决策看 `DECISIONS.md`；细节看 `docs/README.md`。
 > 每次开工先读本文件，收尾必须更新本文件。目标 1–2 页，不写过程流水账。
 
-**最后更新**：2026-11-05
+**最后更新**：2026-11-12
 **仓库**：`Common/whale` · 分支 `main` · 本次 HEAD 以 `git log` 为准（历史已压缩为「自足单体提交 + 后续修复提交」，不再是 §2 记录的 10-24 那批短哈希）
 **工作树**：`git status` 为准；`hostcore/**` 有改动时须 `place-host-app` 同步（本轮未动 hostcore）
-**核心树口径**：以 `hostcore/core-recipe.json` 为准，当前读数 **`0.2.2-rc.1+whale.1`**（2026-11-05 换核，见 §0.5）
+**核心树口径**：以 `hostcore/core-recipe.json` 为准，当前读数 **`0.2.2-rc.2+whale.1`**（2026-11-12 换核，见 §0.6）
 **签名口径**：开发包默认用 365 天无 ACL 调试 Profile（`dist/signing/dev-profile/whale-dev-debug.p7b`，见 `docs/125` §八）
+
+## 0.6 最近一次（2026-11-12）：核心升级 `0.2.2-rc.1+whale.1` → `0.2.2-rc.2+whale.1`
+
+- 上游 rc.2：包 330→336（+14/−8，含 agent-team 转正、cua 回归、office-kit、mcp-manager、util-ripgrep）；
+  **76/333 包的 lib js 变成压缩产物**（本次补丁返工根因）；原生依赖范围不变；cordis 未变。
+- 协议 150→158（+13/−5，零形状变化）；**Office 服务重构**：`officeToPdf` → `officeKit`
+  （render 参数 workspaceFileScopeId/path/priority，返回 RenderedDocumentBytes）⇒ `dshm-office2pdf` 服务键改
+  `officeKit`、profile 停用项改 `office-kit`、office 门禁已改；`Endpoints.ets` 重生成、矩阵加 rc.2、漂移门禁 0。
+- 补丁：删 fs-local 权限文案（上游自带 `fsErrorFromErrno`）；装甲×3/PDF/侧栏页签/语音×2 全部改**双形态**（兼容压缩产物），
+  rc.2 上全部命中；`check-core-openharmony-patches` **161/0**（判据同步兼容压缩产物、删掉已撤除的那条）。
+- 体积：新增 prune `libreoffice-kit-wasm/assets`（-121.9 MB 原始）+ `libreoffice-kit/frame-forwarding/prebuilds`；
+  core zip **152,793,400 B / 57,886 条目** sha `0ae67489…`；HAP **437,793,662 B** sha `81d49a4a…`（1.1.7/1010007）。
+- 门禁：entrypoints 679/4,352 PASS、PTC×2、native-closure、web-fetch-jitless、parity、cli-shim 40/40、fetch-shim、
+  resfile-sync 19、resfile-core-zip ✅、office2pdf-wiring 22/22、hdc-bridge-embed ✅、compat-drift 0。
+- **已知缺口**：`fs-search` 降级未移植（上游把 rg 执行迁到 `dsh-util-ripgrep`）⇒ 端侧 `grep`/`glob` 工具暂报 SEARCH_FAILED；
+  待选：重写降级 或 构建期用 `ohos-selfsign` 给 rg 自签名。
+- **待办**：真机冒烟（启动/Office/语音/插件页/UI 自动化/grep 缺口）；出 GitHub+AtomGit release（v1.1.7）。
 
 ## 0.5 最近一次（2026-11-05）：核心升级 `0.2.2-alpha.2+whale.3` → `0.2.2-rc.1+whale.1`（已装机）
 

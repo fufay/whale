@@ -112,8 +112,20 @@ export interface VersionCheck {
  *                 ⇒ 本次升级只需重生成上表 + 更新矩阵，**不动调用代码与能力映射**。
  *                 证据：`contracts-0.2.2-rc.1.json`（150 端点）+ 漂移门禁 exit=0；
  *                 反向负测试：用 alpha.2 契约跑门禁 exit=1。
+ *   0.2.2-rc.2 —— 端侧当前基线（158 端点，2026-11-12 采集）。相对 rc.1：**+13 / −5**，零形状变化：
+ *                 · 新增 `account/{getNotifications,getNotificationContent,reportNotificationEvent}`、
+ *                   `agentTeams/setEnabled`、`mcpManager/{probe,restart,watch}`、**`officeKit/{generation,render}`**、
+ *                   `subagents/interruptByUser`、`terminal/watch`、`web/listProviders`、`workspaceFiles/search`；
+ *                 · 移除 `account/{ackBonusNotified,getUnnotifiedBonuses}`、**`officeToPdf/{generation,render}`**、
+ *                   `subagents/interruptByParent`；
+ *                 · **Office 服务被上游重构**：`dsh-office-to-pdf`/`officeToPdf` →
+ *                   `dsh-office-kit`/`officeKit`（render 参数变为 workspaceFileScopeId/path/priority，
+ *                   返回 `RenderedDocumentBytes`）⇒ 本仓 `dshm-office2pdf` 已改注册 `officeKit`，
+ *                   profile 停用项改为 `office-kit`。
+ *                 ⇒ 本次升级只需重生成上表 + 更新矩阵；调用代码仅 office 服务名一处（已改）。
  */
 const SUPPORTED_VERSIONS: string[] = [
+  '0.2.2-rc.2',
   '0.2.2-rc.1',
   '0.2.1-alpha.1',
   '0.2.0-rc.2',

@@ -1,5 +1,5 @@
 /**
- * dshm-office2pdf 宿主半边：**顶替**上游 `officeToPdf` 远程服务。
+ * dshm-office2pdf 宿主半边：**顶替**上游 `officeKit` 远程服务（2026-11-12 rc.2 起改名）。
  *
  * ── 为什么这么做（目标：与官方完全对齐）────────────────────────────────────────
  * 侧栏 Office 预览的官方实现（`dsh-client-ui-sidebar-documentpreview` 的 office 定义）
@@ -14,6 +14,7 @@
  * ── 官方返回值契约（`dsh-office-to-pdf/lib/index.js:572-582`）─────────────────
  * ```js
  * { absolutePath, version, offset: 0, eof: true, bytes, data, missingFonts, generation }
+ * （rc.2 的 `RenderedDocumentBytes` = WorkspaceFileBytes + missingFonts + generation，逐字段一致）
  * ```
  *   · `data` = PDF 字节（Uint8Array），`bytes` = 其长度
  *   · `absolutePath` / `version` 来自 `workspaceFiles.stat()`，用于客户端判"源文件没变"
@@ -49,7 +50,7 @@ const CONVERT_PATH = '/dshm-office2pdf/convert';
 const SUPPORTED = new Set(['doc', 'docx', 'ppt', 'pptx']);
 
 /** 服务名：与上游同名，客户端 `remote.officeToPdf` 直接指向我们。 */
-const SERVICE_KEY = 'officeToPdf';
+const SERVICE_KEY = 'officeKit';
 
 /** 本服务需要的外部服务（官方实现要 workspaceFiles 与 fs 读源文件）。 */
 export const inject = ['workspaceFiles', 'fs', 'webServer'];

@@ -168,7 +168,7 @@ const CAPABILITIES = [
     // 剩下的 `prompt` / `interruptByParent` 才是现行面。
     id: 'subagents', label: '子代理',
     requires: [],
-    optional: ['subagents/prompt', 'subagents/interruptByParent'],
+    optional: ['subagents/prompt', 'subagents/interruptByUser'],
     missingHint: '该 Host 未提供子代理端点'
   },
   {

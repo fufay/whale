@@ -731,12 +731,13 @@
   config:
     ghCommand: /storage/Users/currentUser/.harmonybrew/bin/gh
 
-# ── ⑪c 停用上游 office-to-pdf（由 dshm-office2pdf 顶替）───────────────────────
-# 【为什么】上游 `@deepseek-ai/dsh-office-to-pdf` 注册同名 service `officeToPdf`，
-# 底层 `libreoffice-kit` 在 openharmony-arm64 上不可达（引擎按平台解析失败）。
-# 我们注册同名 service，但**同名 service 不能共存**（cordis duplicate-service 会抛）
+# ── ⑪c 停用上游 office-kit（由 dshm-office2pdf 顶替）────────────────────────
+# 【为什么】0.2.2-rc.2 起上游把 office 服务从 `dsh-office-to-pdf`/`officeToPdf` 改成
+# `dsh-office-kit`/`officeKit`，底层 `libreoffice-kit`(+wasm) 在端侧不可达
+# （native 无 openharmony 件、wasm 在 --jitless 下不可用）。
+# 我们注册同名 service `officeKit`，但**同名 service 不能共存**（cordis duplicate-service 会抛）
 # ⇒ 必须先把官方那行停掉。
 # 【恢复】删掉本段 + 把 dshm-office2pdf 行 disabled: true 即回到上游实现
 # （会恢复成"Office 预览不可用"的现状，因为引擎本来就不可达）。
-- id: office-to-pdf
+- id: office-kit
   disabled: true

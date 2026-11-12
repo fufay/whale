@@ -5,7 +5,7 @@
  * 为什么需要它（2026-10-29 的教训，全是实测踩出来的）：
  *   这条链路有 6 个**互相独立**的接点，任一断开都会静默退化成"该格式文件暂时无法预览"，
  *   而且从页面上完全看不出断在哪：
- *     ① profile 必须 `disabled: true` 掉**上游** `office-to-pdf`（它注册同名 `officeToPdf`
+ *     ① profile 必须 `disabled: true` 掉**上游** `office-kit`（rc.2 起它注册同名 `officeKit`
  *        服务，且底层 LibreOfficeKit 在 openharmony-arm64 上不可达）；
  *     ② profile 必须启用我们自己的 `dshm-office2pdf`（注册同名服务，顶替上游实现）；
  *     ③ profile 必须**停用** `dshm-office-system-preview`（它以 priority:"extension" 认领
@@ -48,8 +48,8 @@ function read(relPath) {
 {
   const profile = read('hostcore/profile/ondevice/cordis.patch.yml');
   check('① profile 停用上游 office-to-pdf',
-    /- id:\s*office-to-pdf\s*\n\s*disabled:\s*true/.test(profile),
-    'profile 里应出现 `- id: office-to-pdf` + `disabled: true`');
+    /- id:\s*office-kit\s*\n\s*disabled:\s*true/.test(profile),
+    'profile 里应出现 `- id: office-kit` + `disabled: true`（rc.2 起上游包改名）');
   check('① profile 启用 dshm-office2pdf',
     /- id:\s*dshm-office2pdf\s*\n\s*name:\s*'@deepseek-ai\/dshm-office2pdf'/.test(profile),
     'profile 里应插入 dshm-office2pdf 行');
@@ -62,8 +62,8 @@ function read(relPath) {
 {
   const host = read('hostcore/plugins/dshm-office2pdf/lib/index.js');
   check('② 宿主插件注册同名服务 officeToPdf',
-    host.includes('super(ctx, SERVICE_KEY)') && host.includes("const SERVICE_KEY = 'officeToPdf'"),
-    '应以 super(ctx, "officeToPdf") 注册服务');
+    host.includes('super(ctx, SERVICE_KEY)') && host.includes("const SERVICE_KEY = 'officeKit'"),
+    '应以 super(ctx, "officeKit") 注册服务（rc.2 契约）');
   check('④ render 参数名逐字为 workspaceFileScope',
     /async render\(\s*workspaceFileScope\s*,\s*path\s*,\s*priority\s*,\s*signal\s*\)/.test(host),
     'Gateway source-mode 按参数名查 wire 映射，必须叫 workspaceFileScope');

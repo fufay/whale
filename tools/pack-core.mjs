@@ -498,7 +498,7 @@ function patchVoiceInputNativeCapture() {
     log('[pack-core]   已移除旧版原生采集注入，准备注入 ' + MARK_VERSION);
   }
   /* 必须确认 Recording 是模块级变量（否则追加的代码引用不到） */
-  if (!/\bvar Recording = class/.test(text) && !/\bclass Recording\b/.test(text)) {
+  if (!/\bvar\s+Recording\s*=\s*class/.test(text) && !/\bclass Recording\b/.test(text)) {
     die('原生采集补丁：client.js 里找不到模块级 Recording（树形态变了）');
   }
   /*
@@ -600,10 +600,10 @@ function patchVoiceInputNativeCapture() {
    * 不在作用域 ⇒ 抛 ReferenceError ⇒ 覆盖不生效（真机表现：diag-native 永远为空）。
    * 所以插到 `return module.exports;` **之前**。
    */
-  const exitAnchor = 'return module.exports;';
-  const at = text.lastIndexOf(exitAnchor);
+  // 2026-11-12（rc.2 压缩产物）：factory 结尾是 `return module.exports}`（无分号）⇒ 只认前缀。
+  const at = text.lastIndexOf('return module.exports');
   if (at < 0) {
-    die('原生采集补丁：未找到 "return module.exports;" —— 无法把覆盖代码放进 factory 内（树形态变了）');
+    die('原生采集补丁：未找到 "return module.exports" —— 无法把覆盖代码放进 factory 内（树形态变了）');
   }
   const patched = text.slice(0, at) + overlay + text.slice(at);
   writeFileSync(file, patched, 'utf8');
@@ -627,11 +627,11 @@ function patchVoiceInputNoiseSuppression() {
    * 锚点 `echoCancellation: true` 在本文件里只出现 1 次（已核实）。
    */
   if (!text.includes(MARK_AEC)) {
-    const beforeAec = 'echoCancellation: true';
-    if (!text.includes(beforeAec)) {
-      die(`录音约束补丁：未找到 "${beforeAec}"（树形态变了，需重新核对 client.js）`);
+    const aecRe = /echoCancellation:\s*true/;
+    if (!aecRe.test(text)) {
+      die('录音约束补丁：未找到 "echoCancellation: <true>"（树形态变了，需重新核对 client.js）');
     }
-    text = text.replace(beforeAec,
+    text = text.replace(aecRe,
       `echoCancellation: false /* ${MARK_AEC}：AEC 会改变整个麦克风通路的处理，`
       + `使同进程内其它采集（含 ArkTS AudioCapturer）拿到的音频内容失真 ⇒ `
       + `真机实测识别率崩（说 8 位数字只出"。"）。对照实验：不并发 getUserMedia 时识别正常。`
@@ -650,15 +650,15 @@ function patchVoiceInputNoiseSuppression() {
    * 需要一并处理；而不是因为它是修好识别的那一步。
    */
   if (!text.includes(MARK_NS)) {
-    const beforeNs = 'noiseSuppression: true';
-    if (text.includes(beforeNs)) {
-      text = text.replace(beforeNs,
+    const nsRe = /noiseSuppression:\s*true/;
+    if (nsRe.test(text)) {
+      text = text.replace(nsRe,
         `noiseSuppression: false /* ${MARK_NS}：ArkWeb 的噪声抑制是激进的频带滤波。`
         + `注：它**不是**识别率问题的根因（关掉后无改善）—— 根因是 AEC，见上一条。 */`);
       log('[pack-core]   已关闭官方录音的噪声抑制（非根因，顺带处理）');
-    } else if (text.includes('noiseSuppression: false')) {
+    } else if (/noiseSuppression:\s*false/.test(text)) {
       // 已经被上一版补丁改过（带旧注释）⇒ 用新注释覆盖旧错误说明
-      text = text.replace(/noiseSuppression: false \/\* DSHM_NOISE_SUPPRESSION_OFF：[\s\S]*?\*\//,
+      text = text.replace(/noiseSuppression:\s*false \/\* DSHM_NOISE_SUPPRESSION_OFF：[\s\S]*?\*\//,
         `noiseSuppression: false /* ${MARK_NS}：ArkWeb 的噪声抑制是激进的频带滤波。`
         + `注：它**不是**识别率问题的根因（关掉后无改善，实测补丁前后高频占比 2.85%→3.25%）—— `
         + `根因是 AEC，见上一条。这里关掉它只是顺带去掉一层无益的处理。 */`);
@@ -2780,121 +2780,6 @@ function patchFsLocalLink() {
  * 两者都不在 = `die()`。末尾再核对标记总数 —— 上游改结构必须当场暴露在打包期，
  * 而不是静默失效成「真机又是裸 EPERM」（那种回归只能靠用户复现）。
  */
-function patchFsLocalPermissionHint() {
-  const target = join(STAGE, 'node_modules', '@deepseek-ai', 'dsh-fs-local', 'lib', 'index.js');
-  if (!existsSync(target)) {
-    die(`fs-local 权限文案补丁：找不到 ${target}`);
-  }
-  /*
-   * 注入文本一律用**单引号**串拼（不用模板串）：里面既有反向引号又有 ${…}，
-   * 模板串会在这里被就地求值（实测炸过），单引号串才是"逐字写进树里"。
-   */
-  const MARK = 'DSHM_FS_LOCAL_PERMISSION_HINT';
-  const sites = [
-    {
-      why: 'statRegularFile：stat 被拒 ⇒ FS_PERMISSION_DENIED',
-      before: [
-        '\t\t/* v8 ignore next 2 -- a non-ENOENT stat failure needs a permission/IO fault; only the not-found path is reachable in tests. */',
-        '\t\tif (!isENOENT(error)) throw error;',
-        '\t\tthrow new FsError(`cannot ${verb} "${target.displayPath}": not found`, "FS_NOT_FOUND");',
-      ].join('\n'),
-      after: [
-        '\t\t/*',
-        '\t\t * 【DSHM 端侧补丁 2026-10-06（DSHM_FS_LOCAL_PERMISSION_HINT）】上游把 stat 的裸 errno 直接上抛：',
-        '\t\t * 真机（PC 档）在受保护的用户目录上得到 `EPERM: operation not permitted, stat …`。',
-        '\t\t * 这里复用上游**已有**的 FS_PERMISSION_DENIED（listingIoError() 早就在用这个码），',
-        '\t\t * 文案与 `cannot list "…": permission denied` 同一口径；其余错误原样上抛。',
-        '\t\t * v8 ignore next 3 -- 需要一次 stat 的权限/IO 故障；测试里只覆盖 not-found 那条。',
-        '\t\t */',
-        '\t\tif (isPermissionError(error)) throw new FsError(`cannot ${verb} "${target.displayPath}": permission denied`, "FS_PERMISSION_DENIED", { cause: error });',
-        '\t\tif (!isENOENT(error)) throw error;',
-        '\t\tthrow new FsError(`cannot ${verb} "${target.displayPath}": not found`, "FS_NOT_FOUND");',
-      ].join('\n'),
-    },
-    {
-      why: 'readFileAbortable：open/read 被拒 ⇒ FS_PERMISSION_DENIED（并多收 displayPath）',
-      before: [
-        'async function readFileAbortable(absolutePath, verb, signal) {',
-        '\ttry {',
-        '\t\treturn await readFile(absolutePath, signal ? { signal } : {});',
-        '\t} catch (error) {',
-        '\t\t/* v8 ignore next 2 -- a non-abort readFile rejection needs a permission/IO fault racing an open file. */',
-        '\t\tif (!isAbortError(error)) throw error;',
-        '\t\tthrow new FsError(`${verb} aborted`, "FS_ABORTED");',
-        '\t}',
-        '}',
-      ].join('\n'),
-      after: [
-        '/*',
-        ' * 【DSHM 端侧补丁 2026-10-06（DSHM_FS_LOCAL_PERMISSION_HINT）】多收的 displayPath 只为把',
-        ' * 「读被拒」讲清楚（见下面 catch 的权限分支）；调用方只有 readWholeText() 与 readForEdit()',
-        ' * 两处，都已带上。',
-        ' */',
-        'async function readFileAbortable(absolutePath, verb, signal, displayPath) {',
-        '\ttry {',
-        '\t\treturn await readFile(absolutePath, signal ? { signal } : {});',
-        '\t} catch (error) {',
-        '\t\t/*',
-        '\t\t * 【DSHM 端侧补丁 2026-10-06】上游在这里只认 abort；权限错（真机 PC 档：',
-        '\t\t * `EPERM: operation not permitted, open …`）会裸着上抛 ⇒ 先翻权限、再判 abort，其余原样上抛。',
-        '\t\t * v8 ignore next 3 -- 需要一次 open/read 的权限故障；测试里只覆盖 abort 那条。',
-        '\t\t */',
-        '\t\tif (isPermissionError(error)) throw new FsError(`cannot ${verb} "${displayPath}": permission denied`, "FS_PERMISSION_DENIED", { cause: error });',
-        '\t\tif (!isAbortError(error)) throw error;',
-        '\t\tthrow new FsError(`${verb} aborted`, "FS_ABORTED");',
-        '\t}',
-        '}',
-      ].join('\n'),
-    },
-    {
-      why: 'readWholeText 的调用点：补上 displayPath',
-      before: '\tconst raw = await readFileAbortable(target.targetKey, "read", signal);',
-      after: '\tconst raw = await readFileAbortable(target.targetKey, "read", signal, target.displayPath); /* DSHM_FS_LOCAL_PERMISSION_HINT */',
-    },
-    {
-      why: 'readForEdit 的调用点：补上 displayPath',
-      before: '\tconst buffer = await readFileAbortable(absolutePath, "edit", signal);',
-      after: '\tconst buffer = await readFileAbortable(absolutePath, "edit", signal, displayPath); /* DSHM_FS_LOCAL_PERMISSION_HINT */',
-    },
-  ];
-  let text = readFileSync(target, 'utf8');
-  let patched = 0;
-  for (const site of sites) {
-    const times = text.split(site.before).length - 1;
-    if (times === 0) {
-      if (text.includes(site.after)) continue; // 已打过（幂等）
-      die(`fs-local 权限文案补丁：未找到待替换片段（${site.why}）—— 上游结构变化？拒绝静默跳过`);
-    }
-    if (times !== 1) {
-      die(`fs-local 权限文案补丁：待替换片段出现 ${times} 次（${site.why}）—— 判据不再唯一，拒绝静默乱改`);
-    }
-    text = text.split(site.before).join(site.after);
-    patched += 1;
-  }
-  if (patched === 0) {
-    log('[pack-core]   fs-local 权限文案补丁已存在（跳过）');
-    return;
-  }
-  const marks = text.split(MARK).length - 1;
-  if (marks !== sites.length) {
-    die(`fs-local 权限文案补丁：标记 ${MARK} 应出现 ${sites.length} 次，实际 ${marks} 次 —— 补丁不完整，拒绝出包`);
-  }
-  writeFileSync(target, text, 'utf8');
-  log(`[pack-core]   fs-local 权限文案补丁：stat/open 的裸 errno ⇒ FS_PERMISSION_DENIED（${marks} 处）`);
-}
-/**
- * `dsh-attachment-local` 的**硬链接禁令 + 祖先 fsync 容错**（P1，2026-09-26）。
- *
- * 【两处上游行为，都在鸿蒙上必然失败】
- *   ① `publishImmutableObject` / `publishStagedObject` 用 `link(2)` 发布附件 ⇒ 禁硬链接，失败；
- *   ② `syncDirectory()` 从 DSH_HOME 逐级往上 fsync，最终 open `/data/storage/el2`
- *      （root:root 0711）⇒ EACCES，整条附件保存失败（真机 `read_image` 报
- *      `EACCES: open '/data/storage/el2'`）。
- *
- * 【等价改写】① link → `copyFile(…, COPYFILE_EXCL)`（同样"目标存在即失败"的 exclusive
- * 语义，且不依赖硬链接；EEXIST 分支保持原样）；② 祖先目录打不开/不能 fsync 时跳过该级
- * ——那是沙箱不可达区域，其 durability 不由我们负责。
- */
 function patchAttachmentLocalLink() {
   const target = join(
     STAGE, 'node_modules', '@deepseek-ai', 'dsh-attachment-local', 'lib', 'index.js',
@@ -3104,60 +2989,60 @@ const MAP_COMPAT_SOURCE = `(function () {
 function patchResourceAddressArmor() {
   const scope = join(STAGE, 'node_modules', '@deepseek-ai');
 
-  // ① dsh-client-resources：protocolOf() 的 hostname 兜底。
-  {
-    const target = join(scope, 'dsh-client-resources', 'lib', 'client.js');
+  /**
+   * 三处前端站点共用的替换器（2026-11-12 起双形态：可读源码 / 压缩产物）。
+   * variants：{ find: string | RegExp, build: (m) => string } 按顺序尝试，命中即写盘返回。
+   */
+  const applySite = (target, label, mark, variants) => {
     if (!existsSync(target)) die(`资源地址补丁：找不到 ${target}`);
     let text = readFileSync(target, 'utf8');
-    if (text.includes('DSHM_RESOURCE_ARMOR_PROTOCOL')) {
-      log('[pack-core]   资源地址补丁（client-resources.protocolOf）已存在（跳过）');
-    } else {
-      const before = '\t\t\tif (parsed.protocol !== `dsh-resource:`) return void 0;\n'
-        + '\t\t\treturn parsed.hostname === "" ? void 0 : parsed.hostname.toLowerCase();\n';
-      if (!text.includes(before)) {
-        die('资源地址补丁：client-resources 的 protocolOf() 实现已变化（未找到待替换片段），拒绝静默跳过');
-      }
-      const after = '\t\t\tif (parsed.protocol !== `dsh-resource:`) return void 0;\n'
-        + '\t\t\t/*\n'
-        + '\t\t\t * 【DSHM 鸿蒙补丁 DSHM_RESOURCE_ARMOR_PROTOCOL】ArkWeb 把未注册的 `dsh-resource:` 当 opaque URL：\n'
-        + '\t\t\t * 这里 hostname === ""（Chromium/Node 下是 "file"），原样返回就会让整条资源协议解析失败。\n'
-        + '\t\t\t * hostname 为空时用正则从原始地址取回 authority，语义与 Chromium 一致。\n'
-        + '\t\t\t */\n'
-        + '\t\t\tconst armor = parsed.hostname === "" ? /^[a-z][a-z\\d+.-]*:\\/\\/([^/?#]*)/iu.exec(address) : null;\n'
-        + '\t\t\tconst host = armor === null ? parsed.hostname : armor[1];\n'
-        + '\t\t\treturn host === "" ? void 0 : host.toLowerCase();\n';
-      text = text.replace(before, after);
-      writeFileSync(target, text, 'utf8');
-      log('[pack-core]   资源地址补丁：client-resources protocolOf() 加 opaque-URL authority 兜底');
+    if (text.includes(mark)) {
+      log(`[pack-core]   资源地址补丁（${label}）已存在（跳过）`);
+      return;
     }
-  }
+    for (const v of variants) {
+      const hit = v.find instanceof RegExp ? v.find.exec(text) : (text.includes(v.find) ? [v.find] : null);
+      if (hit === null) continue;
+      text = text.replace(hit[0], v.build(hit));
+      writeFileSync(target, text, 'utf8');
+      log(`[pack-core]   资源地址补丁：${label} 已注入`);
+      return;
+    }
+    die(`资源地址补丁：${label} 的实现已变化（新旧锚点都未命中），拒绝静默跳过`);
+  };
+
+  // ① dsh-client-resources：protocolOf() 的 hostname 兜底。
+  applySite(join(scope, 'dsh-client-resources', 'lib', 'client.js'), 'client-resources.protocolOf', 'DSHM_RESOURCE_ARMOR_PROTOCOL', [
+    {
+      find: '\t\t\tif (parsed.protocol !== `dsh-resource:`) return void 0;\n\t\t\treturn parsed.hostname === "" ? void 0 : parsed.hostname.toLowerCase();\n',
+      build: () => '\t\t\tif (parsed.protocol !== `dsh-resource:`) return void 0;\n'
+        + '\t\t\t/* DSHM_RESOURCE_ARMOR_PROTOCOL：ArkWeb 把未注册的 dsh-resource: 当 opaque URL（hostname===""） */\n'
+        + '\t\t\tif (parsed.hostname === "") {\n'
+        + '\t\t\t\tconst armor = /^[a-z][a-z\\d+.-]*:\\/\\/([^/?#]*)/iu.exec(address);\n'
+        + '\t\t\t\treturn armor === null || armor[1] === "" ? void 0 : armor[1].toLowerCase();\n'
+        + '\t\t\t}\n'
+        + '\t\t\treturn parsed.hostname.toLowerCase();\n',
+    },
+    {
+      find: /return ([A-Za-z_$][\w$]*)\.hostname===``\?void 0:\1\.hostname\.toLowerCase\(\)/,
+      build: (m) => {
+        const h = m[1];
+        return 'return (()=>{/* DSHM_RESOURCE_ARMOR_PROTOCOL：ArkWeb 下 opaque URL 的 hostname 恒为空 */'
+          + `const armor=/^[a-z][a-z\\d+.-]*:\\/\\/([^/?#]*)/iu.exec(address);`
+          + `const host=${h}===\`\`?(armor===null?\`\`:armor[1]):${h};`
+          + 'return host===``?void 0:host.toLowerCase()})()';
+      },
+    },
+  ]);
 
   // ② dsh-client-ui-sidebar-right：pathOf() 剥掉被并进 path 的 authority。
-  {
-    const target = join(scope, 'dsh-client-ui-sidebar-right', 'lib', 'client.js');
-    if (!existsSync(target)) die(`资源地址补丁：找不到 ${target}`);
-    let text = readFileSync(target, 'utf8');
-    if (text.includes('DSHM_RESOURCE_ARMOR_PATH')) {
-      log('[pack-core]   资源地址补丁（sidebar-right.pathOf）已存在（跳过）');
-    } else {
-      const before = '\t\tfunction pathOf(address) {\n'
-        + '\t\t\ttry {\n'
-        + '\t\t\t\treturn new URL(address).pathname;\n'
-        + '\t\t\t} catch {\n'
-        + '\t\t\t\treturn;\n'
-        + '\t\t\t}\n'
-        + '\t\t}\n';
-      if (!text.includes(before)) {
-        die('资源地址补丁：sidebar-right 的 pathOf() 实现已变化（未找到待替换片段），拒绝静默跳过');
-      }
-      const after = '\t\tfunction pathOf(address) {\n'
+  applySite(join(scope, 'dsh-client-ui-sidebar-right', 'lib', 'client.js'), 'sidebar-right.pathOf', 'DSHM_RESOURCE_ARMOR_PATH', [
+    {
+      find: '\t\tfunction pathOf(address) {\n\t\t\ttry {\n\t\t\t\treturn new URL(address).pathname;\n\t\t\t} catch {\n\t\t\t\treturn;\n\t\t\t}\n\t\t}\n',
+      build: () => '\t\tfunction pathOf(address) {\n'
         + '\t\t\ttry {\n'
         + '\t\t\t\tconst parsed = new URL(address);\n'
-        + '\t\t\t\t/*\n'
-        + '\t\t\t\t * 【DSHM 鸿蒙补丁 DSHM_RESOURCE_ARMOR_PATH】ArkWeb 下 `dsh-resource://file/...` 的 pathname 是\n'
-        + '\t\t\t\t * `//file/...`（authority 被并进 path），basename 模式匹配会全灭。用正则从原始地址取回\n'
-        + '\t\t\t\t * authority 之后的 path，语义与 Chromium 一致。\n'
-        + '\t\t\t\t */\n'
+        + '\t\t\t\t/* DSHM_RESOURCE_ARMOR_PATH：ArkWeb 下 pathname 是 `//file/...`（authority 被并进 path） */\n'
         + '\t\t\t\tif (parsed.hostname === "" && parsed.pathname.startsWith("//")) {\n'
         + '\t\t\t\t\tconst armor = /^[a-z][a-z\\d+.-]*:\\/\\/([^/?#]*)([^?#]*)/iu.exec(address);\n'
         + '\t\t\t\t\tif (armor !== null) return armor[2];\n'
@@ -3166,34 +3051,31 @@ function patchResourceAddressArmor() {
         + '\t\t\t} catch {\n'
         + '\t\t\t\treturn;\n'
         + '\t\t\t}\n'
-        + '\t\t}\n';
-      text = text.replace(before, after);
-      writeFileSync(target, text, 'utf8');
-      log('[pack-core]   资源地址补丁：sidebar-right pathOf() 剥掉被并进 path 的 authority');
-    }
-  }
+        + '\t\t}\n',
+    },
+    {
+      find: /function pathOf\(([A-Za-z_$][\w$]*)\)\{try\{return new URL\(\1\)\.pathname\}catch\{return\}\}/,
+      build: (m) => {
+        const a = m[1];
+        return 'function pathOf(' + a + '){try{const parsed=new URL(' + a + ');'
+          + '/* DSHM_RESOURCE_ARMOR_PATH：ArkWeb 下 pathname 是 //file/... */'
+          + 'if(parsed.hostname===``&&parsed.pathname.startsWith(`//`)){'
+          + `const armor=/^[a-z][a-z\\d+.-]*:\\/\\/([^/?#]*)([^?#]*)/iu.exec(${a});`
+          + 'if(armor!==null)return armor[2]}'
+          + 'return parsed.pathname}catch{return}}';
+      },
+    },
+  ]);
 
   // ③ dsh-client-ui-subagent：parseSubagentChatAddress() 的 host / path / query 兜底。
-  {
-    const target = join(scope, 'dsh-client-ui-subagent', 'lib', 'client.js');
-    if (!existsSync(target)) die(`资源地址补丁：找不到 ${target}`);
-    let text = readFileSync(target, 'utf8');
-    if (text.includes('DSHM_RESOURCE_ARMOR_SUBAGENT')) {
-      log('[pack-core]   资源地址补丁（subagent.parseSubagentChatAddress）已存在（跳过）');
-    } else {
-      const before = '\t\t\tif (url.protocol !== "dsh-resource:" || url.hostname.toLowerCase() !== "subagentchat") return void 0;\n'
+  applySite(join(scope, 'dsh-client-ui-subagent', 'lib', 'client.js'), 'subagent.parseSubagentChatAddress', 'DSHM_RESOURCE_ARMOR_SUBAGENT', [
+    {
+      find: '\t\t\tif (url.protocol !== "dsh-resource:" || url.hostname.toLowerCase() !== "subagentchat") return void 0;\n'
         + '\t\t\tconst parts = url.pathname.split("/").filter(Boolean);\n'
         + '\t\t\tif (parts.length !== 2 || parts[0] !== "session") return void 0;\n'
         + '\t\t\tconst parentSessionId = url.searchParams.get("parent");\n'
-        + '\t\t\tconst mode = url.searchParams.get("mode");\n';
-      if (!text.includes(before)) {
-        die('资源地址补丁：subagent 的 parseSubagentChatAddress() 实现已变化（未找到待替换片段），拒绝静默跳过');
-      }
-      const after = '\t\t\t/*\n'
-        + '\t\t\t * 【DSHM 鸿蒙补丁 DSHM_RESOURCE_ARMOR_SUBAGENT】ArkWeb 下 `dsh-resource://subagentchat/...` 的\n'
-        + '\t\t\t * hostname === ""（判定直接失败），且 query 可能被并进 path ⇒ searchParams 取不到\n'
-        + '\t\t\t * parent / mode。这里用正则从原始地址取回 authority / path / query，再走原有判定与白名单。\n'
-        + '\t\t\t */\n'
+        + '\t\t\tconst mode = url.searchParams.get("mode");\n',
+      build: () => '\t\t\t/* DSHM_RESOURCE_ARMOR_SUBAGENT：ArkWeb 下 hostname==="" 且 query 可能被并进 path */\n'
         + '\t\t\tconst armor = url.hostname === "" ? /^[a-z][a-z\\d+.-]*:\\/\\/([^/?#]*)([^?#]*)(\\?[^#]*)?/iu.exec(value) : null;\n'
         + '\t\t\tconst host = armor === null ? url.hostname : armor[1];\n'
         + '\t\t\tconst pathname = armor === null ? url.pathname : armor[2];\n'
@@ -3203,42 +3085,21 @@ function patchResourceAddressArmor() {
         + '\t\t\tif (parts.length !== 2 || parts[0] !== "session") return void 0;\n'
         + '\t\t\tconst searchParams = new URLSearchParams(query);\n'
         + '\t\t\tconst parentSessionId = searchParams.get("parent");\n'
-        + '\t\t\tconst mode = searchParams.get("mode");\n';
-      text = text.replace(before, after);
-      writeFileSync(target, text, 'utf8');
-      log('[pack-core]   资源地址补丁：subagent parseSubagentChatAddress() 加 opaque-URL 兜底');
-    }
-  }
+        + '\t\t\tconst mode = searchParams.get("mode");\n',
+    },
+    {
+      find: /if\(url\.protocol!==`dsh-resource:`\|\|url\.hostname\.toLowerCase\(\)!==`subagentchat`\)return void 0;const parts=url\.pathname\.split\(`\/`\)\.filter\(Boolean\);if\(parts\.length!==2\|\|parts\[0\]!==`session`\)return void 0;const parentSessionId=url\.searchParams\.get\(`parent`\);const mode=url\.searchParams\.get\(`mode`\);/,
+      build: () => 'const armor=url.hostname===``?/^[a-z][a-z\\d+.-]*:\\/\\/([^/?#]*)([^?#]*)(\\?[^#]*)?/iu.exec(value):null;'
+        + 'const host=armor===null?url.hostname:armor[1];const pathname=armor===null?url.pathname:armor[2];'
+        + 'const query=armor===null?url.search:armor[3]===void 0?``:armor[3];'
+        + '/* DSHM_RESOURCE_ARMOR_SUBAGENT */'
+        + 'if(url.protocol!==`dsh-resource:`||host.toLowerCase()!==`subagentchat`)return void 0;'
+        + 'const parts=pathname.split(`/`).filter(Boolean);if(parts.length!==2||parts[0]!==`session`)return void 0;'
+        + 'const searchParams=new URLSearchParams(query);'
+        + 'const parentSessionId=searchParams.get(`parent`);const mode=searchParams.get(`mode`);',
+    },
+  ]);
 }
-
-/*
- * 【N4 侧栏页签 id 泄漏】`SidebarRightTabRegistry.register()` 的取号不是原子的。
- *
- * 上游实现：
- *     const dispose = this.ctx.effect(() => {
- *       this.ids.add(id);                  // ← 取号
- *       const slot = this.enter(kind, entry);
- *       this.refresh();
- *       return () => { this.ids.delete(id); … };
- *     }, …);
- *
- * cordis 的 `effect()` 只在 **setup 成功返回**后才把清理函数收进 disposables
- * （`@deepseek-ai/cordis/lib/index.js:1249-1263`：`try { task = this._execute(runner) }`
- * 抛错分支只做 `finalizeDisposal(dispose)`，也就是"已经收集到的"清理项）。因此
- * `this.ids.add(id)` 之后、那个 `return () => {…}` 之前若发生异常（`enter()` 或
- * `refresh()` → `notifySubscribers()` 里任一订阅者抛），**id 就永久留在 `this.ids`
- * 里**，且没有任何 disposer 能再释放它。
- *
- * 后果正好是 N4：`dsh-better-sidebar` 每次 sync 都用同一 id 重试接管 `files`
- * 页签，于是恒抛 `sidebarRight: tab type id "…" is already registered`，页签再也
- * 立不起来，文件树落到宿主空态；只有刷新整个页面才恢复。（该插件 `sync()` 的
- * 清理循环显式跳过 `FILES_KIND`，所以它自己永远不会清掉这条失败记录。）
- *
- * 修法：把"取号 + 入座 + 通知"做成**原子**——任一步抛错就按原样退回。这样重试
- * 永远是干净的，页签最坏也只是晚一帧立起来，不会永久占死。
- * （与 TODO §N4 修复建议③「平台侧＝对 slot id 做一次强制释放/重注册」同向，
- *   但更小：只在异常路径上回滚，不改变成功路径的任何语义。）
- */
 function patchSidebarTabIdLeak() {
   const target = join(STAGE, 'node_modules', '@deepseek-ai', 'dsh-client-ui-sidebar-right', 'lib', 'client.js');
   if (!existsSync(target)) die(`侧栏页签守卫补丁：找不到 ${target}`);
@@ -3252,8 +3113,17 @@ function patchSidebarTabIdLeak() {
     + '\t\t\t\t\tconst slot = this.enter(kind, entry);\n'
     + '\t\t\t\t\tthis.refresh();\n'
     + '\t\t\t\t\treturn () => {\n';
+  // 2026-11-12（0.2.2-rc.2）：前端压缩 ⇒ 同语义的压缩写法
+  const beforeMin = 'const dispose=this.ctx.effect(()=>{this.ids.add(id);const slot=this.enter(kind,entry);this.refresh();return()=>{';
   if (!text.includes(before)) {
-    die('侧栏页签守卫补丁：sidebar-right 的 register() 实现已变化（未找到待替换片段），拒绝静默跳过');
+    if (!text.includes(beforeMin)) {
+      die('侧栏页签守卫补丁：sidebar-right 的 register() 实现已变化（新旧锚点都未命中），拒绝静默跳过');
+    }
+    const afterMin = 'const dispose=this.ctx.effect(()=>{/* DSHM_TAB_ID_GUARD：取号与入座必须原子，否则异常路径会把 id 永久占死 */this.ids.add(id);let slot;try{slot=this.enter(kind,entry);this.refresh()}catch(reason){this.ids.delete(id);if(slot!==void 0)this.leave(kind,slot,entry);throw reason}return()=>{';
+    text = text.replace(beforeMin, afterMin);
+    writeFileSync(target, text, 'utf8');
+    log('[pack-core]   侧栏页签守卫补丁：sidebarRight.tabs.register() 取号失败回滚（压缩形态）');
+    return;
   }
   const after = '\t\t\t\tconst dispose = this.ctx.effect(() => {\n'
     + '\t\t\t\t\t/* DSHM_TAB_ID_GUARD：取号与入座必须原子，否则异常路径会把 id 永久占死 */\n'
@@ -3285,9 +3155,11 @@ function patchPdfMapCompat() {
   }
 
   // ① 主线程：chunk 工厂开头装一次（该 chunk 是懒加载，装在这里就不受注入时机影响）。
-  const factoryAnchor = 'factory: (require) => {';
-  if ((text.split(factoryAnchor).length - 1) !== 1) {
-    die('pdf 兼容补丁：chunk 工厂入口不唯一（未找到 factory 行），拒绝静默跳过');
+  // 2026-11-12（0.2.2-rc.2）：上游前端 chunk 改压缩产物 ⇒ 工厂行变成 `factory:require=>{`。
+  const factoryAnchors = ['factory: (require) => {', 'factory:require=>{'];
+  const factoryAnchor = factoryAnchors.find((a) => (text.split(a).length - 1) === 1);
+  if (factoryAnchor === void 0) {
+    die('pdf 兼容补丁：chunk 工厂入口不唯一（新旧锚点都未命中），拒绝静默跳过');
   }
   const indented = MAP_COMPAT_SOURCE.replace(/\n+$/, '')
     .split('\n').map((line) => (line === '' ? line : '\t\t' + line)).join('\n');
@@ -3295,8 +3167,10 @@ function patchPdfMapCompat() {
 
   // ② pdf worker：worker 由 Blob URL 起，独立 realm，不继承页面/主线程的原型补丁 ⇒
   //    在 Blob 分片数组**最前面**插一段同样源码的字符串字面量（JSON.stringify 保证转义正确）。
-  const blobAnchor = 'new Blob([_dsh_pdf_worker_default, ';
-  if ((text.split(blobAnchor).length - 1) !== 1) {
+  // 2026-11-12（rc.2）：worker 改内联到 `initialize` 里，构造形式不变但压缩后无空格。
+  const blobAnchors = ['new Blob([_dsh_pdf_worker_default, ', 'new Blob([_dsh_pdf_worker_default,'];
+  const blobAnchor = blobAnchors.find((a) => (text.split(a).length - 1) === 1);
+  if (blobAnchor === void 0) {
     die('pdf 兼容补丁：内联 pdf worker 的 Blob 构造不唯一（未找到待替换片段），拒绝静默跳过');
   }
   text = text.replace(
@@ -3687,7 +3561,6 @@ patchMarketDesktopRuntime();
 patchProfilePnpmBridge();
 patchAgentPresetWorkflow();
 patchFsLocalLink();
-patchFsLocalPermissionHint();
 patchAttachmentLocalLink();
 patchAttachmentLocalCause();
 /*
@@ -3703,7 +3576,8 @@ patchPdfMapCompat();
 patchSubprocessOpenharmony();
 patchSidebarTabIdLeak();
 ensureRipgrepPlatformPackage();
-patchFsSearchFallback();
+/* TODO(rc.2)：上游把 rg 执行迁到 @dsh-util-ripgrep，旧 34KB fallback 需重写；暂显式跳过（真机 grep/glob 会报 SEARCH_FAILED） */
+log("[pack-core]   ⚠ 跳过 fs-search 降级补丁（rc.2 架构变化，待重写；见 Eva-Research/2026-11-12-dsh-0.2.2-rc.2升级评估）");
 addOnDevicePreset();
 /*
  * 【顺序：先落树，再写树内清单】注意**不要把这两步的因果说反**。

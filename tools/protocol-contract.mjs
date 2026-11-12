@@ -317,23 +317,23 @@ function extractFromNpmBuild(scopeDir) {
   const src = readFileSync(file, 'utf8');
   const out = [];
   const seen = new Set();
-  const entryRe = /"([a-z][a-zA-Z0-9_-]*\/[a-zA-Z0-9._-]+)": \{/g;
+  const entryRe = /"([a-z][a-zA-Z0-9_-]*\/[a-zA-Z0-9._-]+)":\s*\{/g;
   let m;
   while ((m = entryRe.exec(src)) !== null) {
     const open = src.indexOf('{', m.index);
     const body = sliceBraced(src, open);
-    if (body === undefined || !/(?:^|\n)\s*service:\s*"/.test(body)) continue;
+    if (body === undefined || !/[{\s,]service:\s*["`]/.test(body)) continue;
     const key = m[1];
     if (seen.has(key)) continue;
     seen.add(key);
     const field = (re) => body.match(re)?.[1];
-    const service = field(/(?:^|\n)\s*service:\s*"([^"]+)"/) ?? '';
-    const stream = /(?:^|\n)\s*mode:\s*"stream"/.test(body);
-    const invocationKind = field(/invocation:\s*\{\s*kind:\s*"([^"]+)"/) ?? 'unknown';
-    const cancellable = /(?:^|\n)\s*cancellation:\s*\{/.test(body);
+    const service = body.match(/[{\s,]service:\s*["`]([^"`]+)["`]/)?.[1] ?? '';
+    const stream = /[{\s,]mode:\s*["`]stream["`]/.test(body);
+    const invocationKind = body.match(/invocation:\s*\{\s*kind:\s*["`]([^"`]+)["`]/)?.[1] ?? 'unknown';
+    const cancellable = /[{\s,]cancellation:\s*\{/.test(body);
     // parameters：切出数组，再逐个参数对象取 name / wire（wire 缺省 = name）
     const params = [];
-    const pIdx = body.search(/(?:^|\n)\s*parameters:\s*\[/);
+    const pIdx = body.search(/[{\s,]parameters:\s*\[/);
     if (pIdx >= 0) {
       const arrOpen = body.indexOf('[', pIdx);
       let depth = 0;
@@ -346,13 +346,13 @@ function extractFromNpmBuild(scopeDir) {
       for (const pm of arr.matchAll(/\{/g)) {
         const obj = sliceBraced(arr, pm.index);
         if (obj === undefined) continue;
-        const name = obj.match(/(?:^|\n)\s*name:\s*"([^"]*)"/)?.[1];
+        const name = obj.match(/[{\s,]name:\s*["`]([^"`]*)["`]/)?.[1];
         if (name === undefined) continue;
-        const wire = obj.match(/(?:^|\n)\s*wire:\s*"([^"]*)"/)?.[1] ?? name;
+        const wire = obj.match(/[{\s,]wire:\s*["`]([^"`]*)["`]/)?.[1] ?? name;
         params.push({ name, wire });
       }
     }
-    const resultOpen = body.search(/(?:^|\n)\s*result:\s*\{/);
+    const resultOpen = body.search(/[{\s,]result:\s*\{/);
     const resultText = resultOpen < 0 ? '' : (sliceBraced(body, body.indexOf('{', resultOpen)) ?? '');
     const resultSymbol = resultText.match(/typeSymbol:\s*"([^"]+)"/)?.[1] ?? '';
     const locText = body.match(/sourceLocation:\s*\{([\s\S]{0,300}?)\}/)?.[1] ?? '';

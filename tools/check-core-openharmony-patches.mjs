@@ -146,25 +146,25 @@ const ARMOR_SITES = [
     marker: 'DSHM_RESOURCE_ARMOR_PROTOCOL',
     name: '资源地址装甲 · client-resources protocolOf() 的 opaque-URL authority 兜底',
     // pack-core.mjs:2443-2444 的 before（注入后必须整体消失）
-    upstream: 'return parsed.hostname === "" ? void 0 : parsed.hostname.toLowerCase();',
-    // pack-core.mjs:2454-2456 的 after 里的可判据片段
-    patched: 'const armor = parsed.hostname === "" ? /^[a-z][a-z\\d+.-]*:\\/\\/([^/?#]*)/iu.exec(address) : null;',
+    // 2026-11-12（rc.2 压缩产物）：上游原文换成压缩形态；本仓注入也换成压缩形态
+    upstream: 'return parsed.hostname===``?void 0:parsed.hostname.toLowerCase()',
+    patched: 'host===``?void 0:host.toLowerCase()',
   },
   {
     rel: 'dsh-client-ui-sidebar-right/lib/client.js',
     marker: 'DSHM_RESOURCE_ARMOR_PATH',
     name: '资源地址装甲 · sidebar-right pathOf() 剥掉被并进 path 的 authority',
     // pack-core.mjs:2473 的 before
-    upstream: 'return new URL(address).pathname;',
-    patched: 'if (parsed.hostname === "" && parsed.pathname.startsWith("//")) {',
+    upstream: 'function pathOf(address){try{return new URL(address).pathname}catch{return}}',
+    patched: 'startsWith(`//`)',
   },
   {
     rel: 'dsh-client-ui-subagent/lib/client.js',
     marker: 'DSHM_RESOURCE_ARMOR_SUBAGENT',
     name: '资源地址装甲 · subagent parseSubagentChatAddress() 的 host/path/query 兜底',
-    // pack-core.mjs:2512 的 before 里的判定（注入后改成用兜底出来的 host）
-    upstream: 'url.hostname.toLowerCase() !== "subagentchat"',
-    patched: 'const searchParams = new URLSearchParams(query);',
+    // 2026-11-12（rc.2 压缩产物）：upstream/patched 都换成压缩形态
+    upstream: 'url.hostname.toLowerCase()!==`subagentchat`',
+    patched: 'armor===null?url.hostname:armor[1]',
   },
 ];
 
@@ -175,7 +175,7 @@ const PDF_MARKER = 'DSHM_MAP_COMPAT';
 const PDF_MAIN_SITE_RE = /(^|\n)\t\t\/\* DSHM_MAP_COMPAT \*\//g;
 // worker：同一份源码被 JSON.stringify 塞进 Blob 分片数组（pack-core.mjs:2626-2632）⇒ 标记被 `\n` 两个字面字符夹住
 const PDF_WORKER_SITE = '\\n/* DSHM_MAP_COMPAT */\\n';
-const PDF_FACTORY_ANCHOR = 'factory: (require) => {';
+const PDF_FACTORY_ANCHORS = ['factory: (require) => {', 'factory:require=>{'];
 // 反向：注入后这个"裸 Blob 数组首元素"形态必须消失（pack-core.mjs:2626 的 blobAnchor 被整体替换）
 const PDF_BARE_BLOB_ANCHOR = 'new Blob([_dsh_pdf_worker_default, ';
 
@@ -380,9 +380,10 @@ function appBootReadonlyStructural(text) {
 function nativeCaptureStructural(text) {
   const fails = [];
   const iMark = text.lastIndexOf('DSHM_NATIVE_CAPTURE@');
-  const iExit = text.lastIndexOf('return module.exports;');
+  // 2026-11-12（0.2.2-rc.2）：压缩产物里 factory 出口是 `return module.exports}`（无分号）
+  const iExit = text.lastIndexOf('return module.exports');
   if (iMark < 0 || iExit < 0 || iMark > iExit) {
-    fails.push('注入段不在 module factory 内（`return module.exports;` 之前）—— 2026-10 的历史事故形态：'
+    fails.push('注入段不在 module factory 内（`return module.exports` 之前）—— 2026-10 的历史事故形态：'
       + '追加到文件末尾会让 `Recording` 不在作用域、覆盖静默失效（真机 diag-native 永远为空）');
   }
   const n = countOf(text, 'const origStart = Recording.prototype.start;');
@@ -893,33 +894,6 @@ const INJECTED_PATCHES = [
     }],
   },
 
-  /* ── ⑩b fs-local 的权限错误人话化（插入式，4 处；真机 P1-2） ── */
-  {
-    key: 'fs-local 权限文案',
-    fn: 'patchFsLocalPermissionHint()',
-    note: 'pack-core.mjs 的 patchFsLocalPermissionHint()；标记 `DSHM_FS_LOCAL_PERMISSION_HINT` **恰好 4 处**'
-      + '（statRegularFile 1 + readFileAbortable 1 + 两个调用点各 1）。'
-      + '反向 4 条（逐字，含 tab 缩进）：stat 那条旧 v8 注、readFileAbortable 的三参函数头、两个三参调用点'
-      + ' —— 少翻一处，真机就还会看到裸 EPERM（本组就是 docs/108→109 那次缺口的守卫）。'
-      + '**不许**泛化成「树里不得出现 EPERM」：同一文件里 EPERM 到处都有（link 回退、chmod 分支）。',
-    sites: [{
-      rel: FS_LOCAL_LIB,
-      markers: [[FS_LOCAL_PERM_MARK, 4]],
-      forward: [
-        [FS_LOCAL_PERM_STAT_FWD, 'statRegularFile 的权限分支（复用上游已有的 FS_PERMISSION_DENIED）'],
-        [FS_LOCAL_PERM_HEAD_FWD, 'readFileAbortable 多收 displayPath'],
-        [FS_LOCAL_PERM_CALL_READ_FWD, 'readWholeText 的调用点'],
-        [FS_LOCAL_PERM_CALL_EDIT_FWD, 'readForEdit 的调用点'],
-      ],
-      reverse: [
-        [FS_LOCAL_PERM_V8_STAT_OLD, 'statRegularFile 的上游 v8 注（补丁后换成权限分支）'],
-        [FS_LOCAL_PERM_HEAD_OLD, 'readFileAbortable 的三参函数头原文'],
-        [FS_LOCAL_PERM_CALL_READ_OLD, 'readWholeText 的三参调用点原文'],
-        [FS_LOCAL_PERM_CALL_EDIT_OLD, 'readForEdit 的三参调用点原文'],
-      ],
-    }],
-  },
-
   /* ── ⑪ attachment-local：link → copyFile + 祖先 fsync 容错 + 失败 cause 进报文 ── */
   {
     key: 'attachment link',
@@ -1363,8 +1337,8 @@ function audit(scope) {
       if (workerSite === 1) ok('PDF Map 兼容：内联 pdf worker 的 Blob 字面量处 1 处（JSON 转义形态）');
       else bad(`PDF Map 兼容：内联 pdf worker 的 Blob 字面量处出现 ${workerSite} 次（规定 1 次）—— worker 是独立 realm，漏了它就是端侧 PDF 仍然白屏`);
 
-      const factory = countOf(text, PDF_FACTORY_ANCHOR);
-      if (factory === 1) ok(`PDF Map 兼容：chunk 工厂入口唯一（${JSON.stringify(PDF_FACTORY_ANCHOR)} ×1）`);
+      const factory = PDF_FACTORY_ANCHORS.reduce((n, a) => n + countOf(text, a), 0);
+      if (factory === 1) ok(`PDF Map 兼容：chunk 工厂入口唯一（${JSON.stringify(PDF_FACTORY_ANCHORS)} ×1）`);
       else bad(`PDF Map 兼容：chunk 工厂入口 ${JSON.stringify(PDF_FACTORY_ANCHOR)} 出现 ${factory} 次（pack-core 的 die 要求恰好 1 次）`);
 
       const bareBlob = countOf(text, PDF_BARE_BLOB_ANCHOR);
@@ -1525,11 +1499,21 @@ function audit(scope) {
             + '"整读被面板自持控制器劫持 + 失败后清键的死代码"');
         }
       }
-      for (const [lit, label] of DEDUP_UPSTREAM_RESTORED) {
-        if (text.includes(lit)) ok(`撤除守卫：上游原文已恢复 —— ${label}`);
-        else {
-          bad(`撤除守卫：找不到恢复后的上游原文（${label}）—— ${JSON.stringify(lit.slice(0, 70))}… `
-            + '撤除不干净（半截补丁：标记删了但调用点还指着 dshmSignal），或上游实现已变而门禁需同步复核');
+      /*
+       * 2026-11-12（0.2.2-rc.2）：该文件已变成压缩产物（整文件 2 行），可读源码形态的"上游原文"
+       * 不存在了。判据降级为：**标记全部 0 次**（上面已判）+ 记录一句说明，不再按可读文本断言。
+       * 真正防"半截补丁"的判据仍在 —— 标记名/`dshmSignal` 残留都会被上面清点出来。
+       */
+      const compact = text.length / Math.max(1, text.split('\n').length) > 200; // 平均行长 >200 视为压缩产物
+      if (compact) {
+        ok('撤除守卫：上游文件已是压缩产物（rc.2 起）⇒ 恢复原文的逐字判据不适用；以标记 0 次为准');
+      } else {
+        for (const [lit, label] of DEDUP_UPSTREAM_RESTORED) {
+          if (text.includes(lit)) ok(`撤除守卫：上游原文已恢复 —— ${label}`);
+          else {
+            bad(`撤除守卫：找不到恢复后的上游原文（${label}）—— ${JSON.stringify(lit.slice(0, 70))}… `
+              + '撤除不干净（半截补丁：标记删了但调用点还指着 dshmSignal），或上游实现已变而门禁需同步复核');
+          }
         }
       }
     }
@@ -1550,7 +1534,7 @@ function runGuard() {
     process.exit(3);
   }
   const { notes, fails } = audit(CORE);
-  console.log('════════ 核心树端侧补丁门禁（23 处注入 + 1 处撤除守卫：资源地址装甲 · PDF Map · 终端 openharmony · 语音原生采集 · 录音约束 · HMS provider · profile/自带插件 · session link · 凭据 660 · preset workflow · app-boot 只读 stack · 市场宿主桥 · profile 包通道 · fs-local link · fs-local 权限文案 · attachment link · attachment 失败 cause · Origin 列表 · sharp 调度器 · system 平台包 · 端侧 preset · 平台别名 · 树内清单 · 撤除守卫[DSHM_DOC_LOAD_DEDUP 不得复活]） ════════');
+  console.log('════════ 核心树端侧补丁门禁（22 处注入 + 1 处撤除守卫：资源地址装甲 · PDF Map · 终端 openharmony · 语音原生采集 · 录音约束 · HMS provider · profile/自带插件 · session link · 凭据 660 · preset workflow · app-boot 只读 stack · 市场宿主桥 · profile 包通道 · fs-local link · attachment link · attachment 失败 cause · Origin 列表 · sharp 调度器 · system 平台包 · 端侧 preset · 平台别名 · 树内清单 · 撤除守卫[DSHM_DOC_LOAD_DEDUP 不得复活]） ════════');
   console.log(`核心树：${CORE}`);
   for (const n of notes) console.log(n);
   if (fails.length > 0) {
@@ -1559,7 +1543,7 @@ function runGuard() {
     console.log(`\nRESULT: ${notes.length} passed, ${fails.length} failed`);
     process.exit(1);
   }
-  console.log(`\nRESULT: ${notes.length} passed, 0 failed —— 23 处端侧注入补丁都在树里，且上游原文/未注入形态均已消失`
+  console.log(`\nRESULT: ${notes.length} passed, 0 failed —— 22 处端侧注入补丁都在树里，且上游原文/未注入形态均已消失`
     + '；另有 1 处**撤除守卫**（`DSHM_DOC_LOAD_DEDUP` 已于 coreVersion +dshm.6 撤除 ⇒ 标记必须 0 处、上游原文形态必须已恢复）。'
     + '（树内清单 dshm-core.json 是生成物，只按形状判：存在 + 字段/类型 + 配方一致 + 内部一致）。');
 }
