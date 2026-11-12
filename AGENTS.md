@@ -68,7 +68,7 @@ Remove-Item ...\.ohos       # ⛔ 禁止（签名私钥只此一份）
 |---|---|---|
 | 构建产物 | `entry/build/default/outputs/default/` | 会被 clean 覆盖，**不要当交付物留档** |
 | 交付/侧载包 | `dist/sideload/` | 不会被构建清掉；含 README + SHA256SUMS |
-| 文档 | `docs/` | 编号连续；**索引以 `docs/README.md` 为准**；当前最新为 `120` |
+| 文档 | `docs/` | 编号连续；**索引以 `docs/README.md` 为准**；当前最新为 `135` |
 | 交接状态 | `HANDOFF.md`（根目录） | 每次开工先读、收尾更新；只放 1–2 页当前状态 |
 | 决策记录 | `DECISIONS.md` | 只追加“决定/原因/备选”，不写流水账 |
 | 一次性排查脚本 | 用完即删 | 不留在 `tools/` |
@@ -77,6 +77,37 @@ Remove-Item ...\.ohos       # ⛔ 禁止（签名私钥只此一份）
 - 不要把“今天改了什么/下一步”写进本文件；那是 `HANDOFF.md` 的职责。
 
 ---
+
+## 出包与本机验证（2026-11-12 定案：版本号规则 + 默认授权）
+
+### 版本号规则（不再逐次讨论）
+
+| 产物 | versionName | versionCode | 说明 |
+|---|---|---|---|
+| **发布件**（GitHub/AtomGit release） | `v1.1.N` | **`10100N`**（N 随版本递增：1.1.7→1010007） | 给用户侧载 / 用户自行从源码构建；**不上架、不 release 签名** |
+| **本机验证件** | 跟随发布号（如 `1.1.8`） | **恒等于设备已装 versionCode** | 同一 versionCode 覆盖安装 ⇒ 不走 ACL 权限校验（无 ACL 调试 Profile 的硬限制，见 `docs/125` §八/§九） |
+
+- 发布件版本号按上表**直接递增**，不再询问"用哪个号"；
+- 本机验证件由 `tools/build-verify-hap.sh` 自动读设备已装 versionCode 生成，**不手填**。
+
+### 本机验证装机 = 常规步骤，**默认授权**
+
+- 允许：`hdc install -r` 装**本机验证件**（同 versionCode 调试包）、`hdc file recv`、`hdc shell` 只读查询、`hilog` 抓取。
+- 仍需先问：**发布件上传**（GitHub/AtomGit release）、卸载/清数据、回滚版本、`rm -rf`/删除 el2 数据或签名物料。
+- 一键流程（不再逐次请示）：
+
+```sh
+sh tools/build-verify-hap.sh                # 读设备已装号 → 出包 → 覆盖安装
+sh tools/build-verify-hap.sh --wait-core 300 # 装完等你在设备上重启应用，脚本自动核对新核心树
+```
+
+> 装完**必须重启应用**：核心树在首启时解包（约 2–4 分钟），之后应用内「dsh 版本」才显示新 `coreVersion`。
+
+### 发布件（侧载/自建）
+
+- 发布件是**未签名 HAP**（`whale-unsigned.hap`）：用户用 hokit 自行签名侧载，或按 README §二自行构建；
+- 构建机需要 `ohos-selfsign`（rg 自签名，见 `docs/135` §7）与 HarmonyOS SDK/Node 24；
+- 本仓**不做 release 签名、不上架应用市场**（用户明确：仅本机自用 + 发布侧载包/源码）。
 
 ## 核心树 / 出包铁律
 
@@ -88,8 +119,7 @@ Remove-Item ...\.ohos       # ⛔ 禁止（签名私钥只此一份）
 3. **resfile 只允许 1 份核心容器**：多份会把 HAP 撑大；`pack-core` 已自动清非当前版本，门禁兜底。
 4. **`coreVersion` 命名口径**：`<上游版本>+whale.<n>`，`+whale.<n>` 是 build metadata、纯给人读；
    **核心树内容一变就必须递增 `<n>`**（补丁增删、插件副本、版本号），否则设备不换树。
-   **当前值以 `hostcore/core-recipe.json` 为准**（截至 2026-10-22 读数为 `0.2.1-rc.2+whale.2`；
-   `docs/117` 里的 `+whale.7` 是历史口径，README 已同步为 `+whale.2`）。
+   **当前值以 `hostcore/core-recipe.json` 为准**（截至 2026-11-12 读数为 `0.2.2-rc.2+whale.1`）。
 5. **清 `dist/core` 时保留当前容器**：判据用完整文件名前缀 `dsh-core-<version>-`，不要用“版本号 + 点”。
    误删可从已装 HAP 的 `resources/resfile/dsh-core-*.zip` 逐字节恢复；前后跑 `check-resfile-core-zip.mjs`。
 
@@ -140,7 +170,7 @@ Remove-Item ...\.ohos       # ⛔ 禁止（签名私钥只此一份）
 | `hostruntime/` | Node 运行时承载 |
 | `hostcore/` | 核心树配方、自带插件、端侧 profile |
 | `tools/` | 构建、pack-core、门禁、推送 |
-| `docs/` | 文档索引 `docs/README.md`；最新 `120` |
+| `docs/` | 文档索引 `docs/README.md`；最新 `135` |
 | `hostkit/` | 可选 PC 侧搭桥（手机档远程 Host） |
 
 ## 维护

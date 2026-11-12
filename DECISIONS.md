@@ -31,6 +31,8 @@
 
 | D-023 | 2026-11-03 | 待办·**下次更新新功能时**删掉 `ohos.permission.ACCESS_USER_FULL_DISK` 的 `requestPermissions` 声明（v1.1.1 因它无法从 1.1.0 升级安装） | 本机该权限无定义（`atm perm -g` → `does not exist`，带/不带 ACL 都是 `grantStatus=-1`），但 **`versionCode` 升级安装**会拿 Profile ACL 校验它而失败（同版本覆盖安装不校验，2026-11-03 对照实验）。它挡住「发新版就装得上」这条日常路径。推迟到下次功能更新：改权限面会影响新装用户的授权/可读范围，属产品改动，不塞进热修 | `entry/src/main/module.json5:112` + 对应 `perm_full_disk_reason` 字符串；`docs/125` §九（步骤/验收/回退）；`HANDOFF.md` §0.1 | **2026-11-04 更正**：单删该条不够 —— 升级安装会校验**全部** ACL 受限权限（下一个报 `ALLOW_EXTERNAL_NATIVE_CODE`），而这些删不得；本机自测改用同 versionCode 覆盖（`WHALE_DEV_VERSIONCODE`），对外发版需正式签名/发布 Profile。见 `docs/125` §9.4。
 
+| D-024 | 2026-11-12 | **本机验证与发布彻底分工**：发布件 `v1.1.N` / `versionCode 10100N`（未签名 HAP，侧载或用户自建源码）；本机验证件由 `tools/build-verify-hap.sh` 自动读**设备已装 versionCode** 出包并覆盖安装（`hdc install -r` 默认授权）；**不做 release 签名、不上架**；发布件上传/卸载/清数据/回滚仍需先问 | 无 ACL 调试 Profile 下 versionCode 升级安装必被 ACL 校验挡住（D-023 更正），`hdc uninstall -k` 又会动用户数据；因此本机永远用同 versionCode 覆盖装。把"读已装号→出包→装→核对核心树"固化成脚本后，不再逐次讨论版本号或请示装机，也避免每次发版手工出两份包。用户明确：仅本机自用 + 发布未签名侧载包/源码，不走 AGC release 签名/上架 | `AGENTS.md`「出包与本机验证」；`tools/build-verify-hap.sh`；`docs/125` §八/§九；D-023 相关结论保留 |
+
 ## 追加格式
 
 ```text
