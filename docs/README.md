@@ -155,5 +155,7 @@
 
 - `135-核心升级到0.2.2-rc.2.md` —— 2026-11-12：升 `@deepseek-ai/dsh` **0.2.2-rc.2**（coreVersion `0.2.2-rc.2+whale.1`）。上游把 **76/333 包改成压缩产物** ⇒ 前端 4 处补丁改双形态；Office 服务被重构（`officeToPdf`→`officeKit`，插件/profile/门禁已改）；新增 prune 掉 121.9 MB `dsoffice.wasm`；协议 150→158（`Endpoints.ets` 重生成、矩阵加 rc.2、漂移门禁 0）。core zip 152,793,400 B sha `0ae67489…`、HAP 437,793,662 B sha `81d49a4a…`（1.1.7/1010007）。**rg 可用性**：rc.2 后 rg 走构建期 `ohos-selfsign` 自签名（注入 `@vscode/ripgrep-openharmony-arm64`），门禁 `assert-rg-selfsigned`；旧的 find/grep 降级已退役。
 
+- `136-语音能力规划（Core Speech Kit）.md` —— 2026-11-12：语音现状盘点（**Core Speech Kit 已接线但只当兜底**，单会话 4–5 s 截断；SenseVoice 优先但需 230 MB 模型下载 + HAP 17.4 MB 原生库）与改用 Speech Kit 分阶段方案（M0 能力探测 → M1 主线+长语音 → M2 删 SenseVoice/onnx/sherpa → M3 可选 TTS → M4 验证发布）。**规划稿，未实施**。
+
 其它调研材料（官方桌面端 README、上游协议包文档副本、社区工程浅克隆等）按需放在同一目录即可，不入库。
 
