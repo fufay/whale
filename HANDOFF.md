@@ -26,6 +26,8 @@
   `ripgrep 15.0.0`（⇒ 端侧 grep/glob 走真 rg）。
 - 门禁：新增 `tools/assert-rg-selfsigned.mjs`（13 项）；删除 `tools/assert-fs-search-fallback.mjs`；`assert-exec-fix` 同步。
 - 产物：core zip 145.7 MB / 57,885 条目 sha `4c6f2118…`；HAP 1.1.8/1010008 未签名件 **437,791,076 B** sha `0c224286…`。
+- **真机验证（2026-11-12）**：rc.2 树上 `glob`/`grep` 正负向全通（20 文件 / 31 命中 / 无匹配不报错），
+  设备内 `@vscode/ripgrep-openharmony-arm64/bin/rg --version` → `ripgrep 15.0.0` ⇒ 缺口已修复。
 - 前置：构建机需有 `ohos-selfsign`（缺失 pack-core 直接 die）。
 
 ## 0.6 最近一次（2026-11-12）：核心升级 `0.2.2-rc.1+whale.1` → `0.2.2-rc.2+whale.1`
