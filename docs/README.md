@@ -153,7 +153,7 @@
 
 - `134-核心升级到0.2.2-rc.1（换核记录）.md` —— 2026-11-05：升 `@deepseek-ai/dsh` **0.2.2-rc.1**（coreVersion `0.2.2-rc.1+whale.1`）。两处工具修复：① `pack-core` 的 fs-local 补丁改**双形状**（上游把 `createIfAbsent` 形参改为 `options` 对象）；② `protocol-contract` 补 **npm 构建描述符表兜底提取**（上游 typert 描述符改为构建期序列化表，旧正则会静默报 0 endpoint ⇒ 假绿，`docs/128` 的 BLOCKED 根因）。协议基线 147→150（+5/−2 全在 schedule 域，Whale 不调用 ⇒ 零调用代码改动），门禁 exit 0 + 负测试 exit 1。core zip 108,464,120 B sha `c2cb6aeb…`；HAP 395,816,448 B sha `67f7e2f0…`（1.1.5/1010001）**已覆盖装机**；门禁全绿（补丁 173/0、入口 663/3,990、PTC、native-closure、web-fetch-jitless、parity、resfile 三处一致）。
 
-- `135-核心升级到0.2.2-rc.2.md` —— 2026-11-12：升 `@deepseek-ai/dsh` **0.2.2-rc.2**（coreVersion `0.2.2-rc.2+whale.1`）。上游把 **76/333 包改成压缩产物** ⇒ 前端 4 处补丁改双形态；Office 服务被重构（`officeToPdf`→`officeKit`，插件/profile/门禁已改）；新增 prune 掉 121.9 MB `dsoffice.wasm`；协议 150→158（`Endpoints.ets` 重生成、矩阵加 rc.2、漂移门禁 0）。core zip 152,793,400 B sha `0ae67489…`、HAP 437,793,662 B sha `81d49a4a…`（1.1.7/1010007）。**已知缺口**：fs-search 的 rg 降级未移植（`dsh-util-ripgrep` 架构变化），端侧 grep/glob 工具暂不可用，待「重写降级」或「构建期自签名 rg」。
+- `135-核心升级到0.2.2-rc.2.md` —— 2026-11-12：升 `@deepseek-ai/dsh` **0.2.2-rc.2**（coreVersion `0.2.2-rc.2+whale.1`）。上游把 **76/333 包改成压缩产物** ⇒ 前端 4 处补丁改双形态；Office 服务被重构（`officeToPdf`→`officeKit`，插件/profile/门禁已改）；新增 prune 掉 121.9 MB `dsoffice.wasm`；协议 150→158（`Endpoints.ets` 重生成、矩阵加 rc.2、漂移门禁 0）。core zip 152,793,400 B sha `0ae67489…`、HAP 437,793,662 B sha `81d49a4a…`（1.1.7/1010007）。**rg 可用性**：rc.2 后 rg 走构建期 `ohos-selfsign` 自签名（注入 `@vscode/ripgrep-openharmony-arm64`），门禁 `assert-rg-selfsigned`；旧的 find/grep 降级已退役。
 
 其它调研材料（官方桌面端 README、上游协议包文档副本、社区工程浅克隆等）按需放在同一目录即可，不入库。
 

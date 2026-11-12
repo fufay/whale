@@ -6,8 +6,20 @@
 **最后更新**：2026-11-12
 **仓库**：`Common/whale` · 分支 `main` · 本次 HEAD 以 `git log` 为准（历史已压缩为「自足单体提交 + 后续修复提交」，不再是 §2 记录的 10-24 那批短哈希）
 **工作树**：`git status` 为准；`hostcore/**` 有改动时须 `place-host-app` 同步（本轮未动 hostcore）
-**核心树口径**：以 `hostcore/core-recipe.json` 为准，当前读数 **`0.2.2-rc.2+whale.1`**（2026-11-12 换核，见 §0.6）
+**核心树口径**：以 `hostcore/core-recipe.json` 为准，当前读数 **`0.2.2-rc.2+whale.1`**（2026-11-12 换核，见 §0.6/§0.7）
 **签名口径**：开发包默认用 365 天无 ACL 调试 Profile（`dist/signing/dev-profile/whale-dev-debug.p7b`，见 `docs/125` §八）
+
+## 0.7 2026-11-12（v1.1.8）：rg 改为构建期自签名（补 rc.2 的 grep/glob 缺口）
+
+- 背景：rc.2 把 rg 执行迁到 `@deepseek-ai/dsh-util-ripgrep`，旧 34 KB find/grep 降级整段失效（v1.1.7 的已知缺口）。
+- 方案：`pack-core` 的 `ensureRipgrepPlatformPackage()` 用 **`ohos-selfsign`** 给 rg 追加 `.codesign`（sign+verify），
+  注入到 **`@vscode/ripgrep-openharmony-arm64`**（`@vscode/ripgrep` 按 `process.platform` 拼包名），并清掉旧 `linux-arm64`
+  目录；`hostcore/app/main.js` 的 rg 真身路径/PATH wrapper 同步改新包名。
+- 实测：HAP 内 core zip 的 rg → `ohos-selfsign verify` codesign/selfsign/signature_match 全 yes，沙箱内直接执行输出
+  `ripgrep 15.0.0`（⇒ 端侧 grep/glob 走真 rg）。
+- 门禁：新增 `tools/assert-rg-selfsigned.mjs`（13 项）；删除 `tools/assert-fs-search-fallback.mjs`；`assert-exec-fix` 同步。
+- 产物：core zip 145.7 MB / 57,885 条目 sha `4c6f2118…`；HAP 1.1.8/1010008 未签名件 **437,791,076 B** sha `0c224286…`。
+- 前置：构建机需有 `ohos-selfsign`（缺失 pack-core 直接 die）。
 
 ## 0.6 最近一次（2026-11-12）：核心升级 `0.2.2-rc.1+whale.1` → `0.2.2-rc.2+whale.1`
 

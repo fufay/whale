@@ -50,7 +50,7 @@ ok(/E1-E19 实验定案/.test(c), 'ensureExecutables 注释交代拆除依据');
 
 // ── rg wrapper 与垫片降级（保留原样）─────────────────────────────────────
 ok(/function ensureRipgrepWrapper\(binDir\)/.test(c), 'ensureRipgrepWrapper 定义');
-ok(/ripgrep-linux-arm64', 'bin', 'rg'/.test(c), 'rg 真身路径拼接');
+ok(/ripgrep-openharmony-arm64', 'bin', 'rg'/.test(c), 'rg 真身路径拼接（rc.2：openharmony-arm64 平台包）');
 ok(/ensureRipgrepWrapper\(binDir\);/.test(c), '顶层块调用 rg wrapper');
 ok((c.match(/ensureExecutables\(\)\.catch/g) || []).length === 2, 'ensureExecutables 两处挂载（稳态+解包收尾）');
 ok(/if \(pyOk && gitOk\) \{[\s\S]{0,140}setImmediate/.test(c), '解包收尾仅在锚点齐备时触发探测');

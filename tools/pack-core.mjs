@@ -293,7 +293,7 @@ function selfSignNatives() {
   const nm = join(STAGE, 'node_modules');
   const tool = findBinarySignTool();
   if (tool === null) {
-    log('[pack-core]   ⚠ 找不到 binary-sign-tool（或 JDK）：跳过自签名，rg/git 真身仍会被 execve 拒');
+    log('[pack-core]   ⚠ 找不到 binary-sign-tool（或 JDK）：跳过 .node/.so 自签名；rg 另由 ohos-selfsign 单独签（见 ensureRipgrepPlatformPackage），git 真身仍可能被 execve 拒');
     return { attempted: 0, signed: 0, skipped: true };
   }
   const readelf = findReadelf();
@@ -1214,13 +1214,39 @@ function ensureRipgrepPlatformPackage() {
   if (head[0] !== 0x7f || head[1] !== 0x45 || head[18] !== 0xb7 || head[19] !== 0x00) {
     die('bin/rg 不是 ELF aarch64（缓存可能被污染）');
   }
-  const dst = join(STAGE, 'node_modules', '@vscode', 'ripgrep-linux-arm64');
+  /*
+   * 2026-11-12（0.2.2-rc.2 起）：**不再需要 find/grep 降级**，改为构建期给 rg 自签名。
+   *
+   * 背景：debug 签名域里 execve 第三方 ELF 被拒（真机实证 `rg=Permission denied`），
+   * 旧方案是在 `dsh-tool-fs-search` 里注入 34 KB 的 find/grep 降级（rc.2 把 rg 执行迁到
+   * `@deepseek-ai/dsh-util-ripgrep` 后整段失效）。现在用 `ohos-selfsign` 给 rg 追加
+   * `.codesign` 自签名 —— 实测签名件在应用沙箱内可直接执行（`ripgrep 15.0.0`）。
+   *
+   * 解析链：`dsh-util-ripgrep.resolveRgPath()` → `import('@vscode/ripgrep').rgPath`，
+   * 而 `@vscode/ripgrep` 按 `process.platform` 拼包名（端侧 = `openharmony`）
+   * ⇒ 必须注入 `@vscode/ripgrep-openharmony-arm64`（旧名 linux-arm64 不再被查找）。
+   */
+  const selfsign = which('ohos-selfsign')
+    || (existsSync(join(homedir(), 'bin', 'ohos-selfsign')) ? join(homedir(), 'bin', 'ohos-selfsign') : null);
+  if (!selfsign) {
+    die('ripgrep 自签名：找不到 ohos-selfsign（见 Skills/2026-10-28-ohos-native-tool 的 tools/install.sh）'
+      + ' —— rc.2 起 rg 必须自签名才能在端侧 execve，不能跳过');
+  }
+  const signedRg = join(tmp, 'rg.signed');
+  const sg = spawnSync(selfsign, ['sign', rgBin, signedRg], { stdio: 'inherit' });
+  if (sg.status !== 0 || !existsSync(signedRg)) die('ripgrep 自签名失败（ohos-selfsign sign）');
+  const vf = spawnSync(selfsign, ['verify', signedRg], { stdio: 'inherit' });
+  if (vf.status !== 0) die('ripgrep 自签名校验失败（ohos-selfsign verify）');
+  cpSync(signedRg, join(srcPkg, 'bin', 'rg'));
+  const dst = join(STAGE, 'node_modules', '@vscode', 'ripgrep-openharmony-arm64');
   const rgSizeMb = (statSync(rgBin).size / 1048576).toFixed(1);
+  // 旧名平台包（rc.1 时代注入的）不再被 @vscode/ripgrep 查找 ⇒ 一并清掉，避免树里多一份 4.6 MB 未签名 rg
+  rmSync(join(STAGE, 'node_modules', '@vscode', 'ripgrep-linux-arm64'), { recursive: true, force: true });
   rmSync(dst, { recursive: true, force: true });
   cpSync(srcPkg, dst, { recursive: true, force: true });
   rmSync(tmp, { recursive: true, force: true });
-  log('[pack-core]   ripgrep 平台包已注入：@vscode/ripgrep-linux-arm64/bin/rg'
-    + `（${rgSizeMb} MB 静态 ELF，fs-search 的 spawn 目标）`);
+  log('[pack-core]   ripgrep 平台包已注入并自签名：@vscode/ripgrep-openharmony-arm64/bin/rg'
+    + `（${rgSizeMb} MB 静态 ELF；grep/glob 的 spawn 目标，签名后可直接 execve）`);
 }
 
 /**
@@ -3576,8 +3602,11 @@ patchPdfMapCompat();
 patchSubprocessOpenharmony();
 patchSidebarTabIdLeak();
 ensureRipgrepPlatformPackage();
-/* TODO(rc.2)：上游把 rg 执行迁到 @dsh-util-ripgrep，旧 34KB fallback 需重写；暂显式跳过（真机 grep/glob 会报 SEARCH_FAILED） */
-log("[pack-core]   ⚠ 跳过 fs-search 降级补丁（rc.2 架构变化，待重写；见 Eva-Research/2026-11-12-dsh-0.2.2-rc.2升级评估）");
+/*
+ * fs-search 降级补丁已退役（2026-11-12）：rc.2 起 rg 在构建期自签名（见
+ * ensureRipgrepPlatformPackage），端侧 rg 能直接 execve ⇒ 不再需要 find/grep 降级。
+ * 旧注入函数 patchFsSearchFallback() 保留在文件里作为历史参考，**不再调用**。
+ */
 addOnDevicePreset();
 /*
  * 【顺序：先落树，再写树内清单】注意**不要把这两步的因果说反**。

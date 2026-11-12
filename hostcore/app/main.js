@@ -3084,7 +3084,7 @@ function ensureCoreExecBits() {
   }
   const targets = [];
   // ripgrep 真身（fs-search 的 spawn 目标 + rg wrapper 的转发目标）
-  targets.push(path.join(CORE_DIR, 'node_modules', '@vscode', 'ripgrep-linux-arm64', 'bin', 'rg'));
+  targets.push(path.join(CORE_DIR, 'node_modules', '@vscode', 'ripgrep-openharmony-arm64', 'bin', 'rg'));
   // sharp 的原生件（可选原生库，存在才补）
   for (const rel of [
     path.join('@ohos-ports', 'img-sharp-openharmony-arm64', 'lib', 'sharp-openharmony-arm64.node'),
@@ -3120,7 +3120,7 @@ function ensureRipgrepWrapper(binDir) {
   if (!binDir || binDir.length === 0 || CORE_DIR.length === 0) {
     return;
   }
-  const rg = path.join(CORE_DIR, 'node_modules', '@vscode', 'ripgrep-linux-arm64', 'bin', 'rg');
+  const rg = path.join(CORE_DIR, 'node_modules', '@vscode', 'ripgrep-openharmony-arm64', 'bin', 'rg');
   if (statSize(rg) <= 0) {
     diag('rg wrapper：core 树暂无 rg（首装 boot 正常），下次启动布置');
     return;
@@ -4178,7 +4178,7 @@ function execProbeTargets() {
        },
     { label: 'git-remote-http', p: path.join(GIT_ROOT, 'usr', 'libexec', 'git-core', 'git-remote-http'), args: [], env: gitEnv,
        },
-    { label: 'rg', p: CORE_DIR.length > 0 ? path.join(CORE_DIR, 'node_modules', '@vscode', 'ripgrep-linux-arm64', 'bin', 'rg') : '', args: ['--version'], env: process.env,
+    { label: 'rg', p: CORE_DIR.length > 0 ? path.join(CORE_DIR, 'node_modules', '@vscode', 'ripgrep-openharmony-arm64', 'bin', 'rg') : '', args: ['--version'], env: process.env,
        },
     // 【P0 回归的验收锚点】bash 垫片是"宿主进程写出的文本脚本"与 busybox 副本同一
     // 创建者类别（hmfs 上可执行）；这里真跑一次 `bash -c 'echo DSHM-EXEC-OK'`，把结果
