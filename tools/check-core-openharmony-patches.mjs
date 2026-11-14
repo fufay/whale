@@ -149,6 +149,21 @@ const ARMOR_SITES = [
     // 2026-11-12（rc.2 压缩产物）：上游原文换成压缩形态；本仓注入也换成压缩形态
     upstream: 'return parsed.hostname===``?void 0:parsed.hostname.toLowerCase()',
     patched: 'host===``?void 0:host.toLowerCase()',
+    /*
+     * 【2026-11-14 事故门禁】rc.2 压缩形态的注入曾漏写 `.hostname`：
+     *   const host=parsed===``?(armor===null?``:armor[1]):parsed;   ← parsed 是 URL 对象
+     *   return host===``?void 0:host.toLowerCase();                 ← TypeError
+     * 上面三条旧判据（标记在 / patched 片段在 / upstream 不在）**全都照样通过**，
+     * 于是 v1.1.8 发布件带着这个崩点出包：任何 dsh-resource 地址解析即抛
+     * `host.toLowerCase is not a function` ⇒ 侧栏文档预览页签全崩（点 doc/ppt/xlsx 无反应）。
+     * ⇒ 补语义判据：host 只允许是"字符串 authority"或 armor 正则的第 1 捕获组。
+     */
+    mustContain: [
+      'parsed.hostname===``?(armor===null?``:armor[1]):parsed.hostname;',
+    ],
+    forbidden: [
+      '?``:armor[1]):parsed;',
+    ],
   },
   {
     rel: 'dsh-client-ui-sidebar-right/lib/client.js',
@@ -1317,6 +1332,16 @@ function audit(scope) {
     if (text.includes(site.upstream)) {
       bad(`${site.name}：**上游原文仍在**（${JSON.stringify(site.upstream.slice(0, 60))}…）—— 补丁被回退或被后续改动覆盖`);
     }
+    /* 语义判据（2026-11-14 增加）：光看标记/判据片段会漏掉"注入代码本身写错"这一类 ——
+     * v1.1.8 的 `.hostname` 漏写就是这么漏出去的（三条旧判据全绿）。 */
+    for (const piece of site.mustContain ?? []) {
+      if (text.includes(piece)) ok(`${site.name}：语义判据在位（${JSON.stringify(piece.slice(0, 50))}…）`);
+      else bad(`${site.name}：**注入代码语义不对** —— 找不到 ${JSON.stringify(piece.slice(0, 70))}…（host 必须是字符串 authority，不能是 URL 对象）`);
+    }
+    for (const piece of site.forbidden ?? []) {
+      if (text.includes(piece)) bad(`${site.name}：**发现已知坏形态** ${JSON.stringify(piece)} —— host 被赋成 URL 对象，运行期必抛 host.toLowerCase is not a function（v1.1.8 事故形态）`);
+      else ok(`${site.name}：坏形态不存在（${JSON.stringify(piece)}）`);
+    }
   }
 
   /* ── ② PDF Map 兼容：两处注入各一次 ── */
@@ -1690,6 +1715,18 @@ function selfTest() {
       .filter((n) => /^profile-boot-.*\.js$/.test(n))
       .find((n) => readFileSync(join(marketLibDir, n), 'utf8').includes(DSH_MARKET_MARKER));
     const handCases = [
+      {
+        /*
+         * 【2026-11-14 事故回归】把注入**改回 v1.1.8 的坏形态**（host 被赋成 URL 对象），
+         * 标记与 patched 片段都还在 ⇒ 只有新加的语义判据能抓住它。
+         * 这条用例是"新判据不是摆设"的证据（if 它变绿，说明语义断言失效）。
+         */
+        name: 'M0 host 漏写 .hostname（v1.1.8 坏形态）→ ①语义判据红',
+        run: () => mutate(ARMOR_SITES[0].rel, (t) => t
+          .replace('parsed.hostname===``?(armor===null?``:armor[1]):parsed.hostname;',
+            'parsed===``?(armor===null?``:armor[1]):parsed;')),
+        expect: /注入代码语义不对|发现已知坏形态/,
+      },
       {
         name: 'M1 资源装甲标记（client-resources）被改名 → ①红',
         run: () => mutate(ARMOR_SITES[0].rel,

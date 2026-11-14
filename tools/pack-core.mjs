@@ -3053,9 +3053,20 @@ function patchResourceAddressArmor() {
       find: /return ([A-Za-z_$][\w$]*)\.hostname===``\?void 0:\1\.hostname\.toLowerCase\(\)/,
       build: (m) => {
         const h = m[1];
+        /*
+         * 【2026-11-14 事故修复】上一版压缩形态把 host 写成了 `${h}`（URL 对象）而不是
+         * `${h}.hostname`（字符串）：`const host=parsed===``?(armor===null?``:armor[1]):parsed;`
+         * ⇒ `host === ""` 恒 false，随后 `host.toLowerCase()` 对 URL 对象抛
+         *   `TypeError: host.toLowerCase is not a function`。
+         * 后果（v1.1.8 / 0.2.2-rc.2 真机实测）：任何 `dsh-resource://` 地址解析即抛
+         * ⇒ `sidebar.right.pane.tab` 的文档预览条目崩溃 ⇒ 点 doc/ppt/xlsx 无反应，
+         * 且 client 侧一个 `/api/workspaceFiles/*` 请求都发不出去（宿主日志可证）。
+         * 所以这里两处都必须带 `.hostname`：条件用 `${h}.hostname === ''`，否则回退的
+         * 分支也用 `${h}.hostname`。
+         */
         return 'return (()=>{/* DSHM_RESOURCE_ARMOR_PROTOCOL：ArkWeb 下 opaque URL 的 hostname 恒为空 */'
           + `const armor=/^[a-z][a-z\\d+.-]*:\\/\\/([^/?#]*)/iu.exec(address);`
-          + `const host=${h}===\`\`?(armor===null?\`\`:armor[1]):${h};`
+          + `const host=${h}.hostname===\`\`?(armor===null?\`\`:armor[1]):${h}.hostname;`
           + 'return host===``?void 0:host.toLowerCase()})()';
       },
     },

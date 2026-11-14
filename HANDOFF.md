@@ -3,11 +3,27 @@
 > **这是当前状态，不是规则。** 规则看 `AGENTS.md`；决策看 `DECISIONS.md`；细节看 `docs/README.md`。
 > 每次开工先读本文件，收尾必须更新本文件。目标 1–2 页，不写过程流水账。
 
-**最后更新**：2026-11-12
+**最后更新**：2026-11-14
 **仓库**：`Common/whale` · 分支 `main` · 本次 HEAD 以 `git log` 为准（历史已压缩为「自足单体提交 + 后续修复提交」，不再是 §2 记录的 10-24 那批短哈希）
 **工作树**：`git status` 为准；`hostcore/**` 有改动时须 `place-host-app` 同步（本轮未动 hostcore）
-**核心树口径**：以 `hostcore/core-recipe.json` 为准，当前读数 **`0.2.2-rc.2+whale.1`**（2026-11-12 换核，见 §0.6/§0.7）
+**核心树口径**：以 `hostcore/core-recipe.json` 为准，当前读数 **`0.2.2-rc.2+whale.2`**（2026-11-14 修 v1.1.8 的 Office 预览崩溃，见 §0.9）
 **签名口径**：开发包默认用 365 天无 ACL 调试 Profile（`dist/signing/dev-profile/whale-dev-debug.p7b`，见 `docs/125` §八）
+
+## 0.9 2026-11-14（v1.1.9）：修 v1.1.8 的 Office 预览全崩（资源地址 armor 补丁漏 `.hostname`）
+
+- **现象**：v1.1.8 侧栏点 doc/docx/ppt/pptx/xlsx **无反应**；宿主日志 `/api/workspaceFiles/*`、`/api/officeToPdf|officeKit/*` 自 11-12 11:45（rc.1）后 **0 次**。
+- **根因**：`pack-core` 的 rc.2 压缩分支把 host 写成 `${h}`（URL 对象）而非 `${h}.hostname`
+  ⇒ `dsh-client-resources.protocolOf()` 对任何 `dsh-resource://` 抛 `TypeError: host.toLowerCase is not a function`
+  ⇒ `sidebar.right.pane.tab`（文档预览页签）崩溃。与用户当天装的 `dsh-obscura-skill` **无关**。
+- **为什么门禁没拦住**：三处装甲的旧判据只查"标记/片段/上游原文"，坏形态三条全满足（已修，见下）。
+- **修复**：`pack-core` 两处带 `.hostname`；门禁新增 2 条**语义判据** + 负测试 `M0`（坏形态塞回必须红）；
+  `coreVersion` → `0.2.2-rc.2+whale.2`；`AppScope` → 1.1.9/1010009。
+- **产物**：core zip 152,790,798 B / 57,885 条目 / sha `80ee08c1…`（与旧容器逐条目只差 3 项：该 client.js +18 B、package.json、dshm-core.json）；
+  本机验证件 `whale-verify-1.1.9-vc1010001.hap` 440,166,234 B sha `9d4c2770…`（已 `install -r`）；
+  未签名发布件 437,791,078 B sha `b0dbe0bd…`（124 条目全 STORED、无签名条目）。
+- **门禁**：补丁 **163/0**；resfile-core-zip / entrypoints / resfile-sync / office2pdf-wiring / rg-selfsigned / exec-fix 全过。
+- **待办**：真机冒烟（重启后点 doc/ppt/xlsx）；`--self-test` 的 **M10 既有红**（rc.2 压缩后 DEDUP 4 条上游原文判据失效，非本次引入）待另修。
+- 细节：`docs/137`。
 
 ## 0.8 2026-11-12：语音功能**搁置**（D-025）
 

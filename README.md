@@ -12,7 +12,7 @@ Whale 把 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（
 HAP 内自带 Node 运行时与 dsh 核心树，核心在本机 `127.0.0.1` 上起 Host，应用内的 ArkWeb 页面加载官方 Web 前端 ——
 **装上即用**，不需要在电脑上常驻任何服务，数据只留在本机应用沙箱内。
 
-> 当前核心：**dsh `0.2.2-rc.2`**（口径以 `hostcore/core-recipe.json` 为准，当前 `0.2.2-rc.2+whale.1`）
+> 当前核心：**dsh `0.2.2-rc.2`**（口径以 `hostcore/core-recipe.json` 为准，当前 `0.2.2-rc.2+whale.2`）
 > · 主包名 `com.jwhsoft.whale`（显示名 **WhaleX**）· Node **v24.21.0 / jitless** · Host 仅监听回环地址
 >
 > 旧包 `whale.jwh.chat`（显示名 Whale）**仅存档、不再更新**；设备上已装的那份保持原样可用。
@@ -21,8 +21,8 @@ HAP 内自带 Node 运行时与 dsh 核心树，核心在本机 `127.0.0.1` 上�
 
 | 平台 | 仓库 | 未签名 HAP |
 |---|---|---|
-| GitHub | <https://github.com/fufay/whale> | <https://github.com/fufay/whale/releases/download/v1.1.8/whale-unsigned.hap> |
-| AtomGit | <https://atomgit.com/Kevin911/whale> | <https://atomgit.com/Kevin911/whale/releases/download/v1.1.8/whale-unsigned.hap> |
+| GitHub | <https://github.com/fufay/whale> | <https://github.com/fufay/whale/releases/download/v1.1.9/whale-unsigned.hap> |
+| AtomGit | <https://atomgit.com/Kevin911/whale> | <https://atomgit.com/Kevin911/whale/releases/download/v1.1.9/whale-unsigned.hap> |
 
 ## 功能概览
 

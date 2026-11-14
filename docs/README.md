@@ -157,5 +157,7 @@
 
 - `136-语音能力规划（Core Speech Kit）.md` —— 2026-11-12：语音现状盘点（**Core Speech Kit 已接线但只当兜底**，单会话 4–5 s 截断；SenseVoice 优先但需 230 MB 模型下载 + HAP 17.4 MB 原生库）与改用 Speech Kit 分阶段方案（M0 能力探测 → M1 主线+长语音 → M2 删 SenseVoice/onnx/sherpa → M3 可选 TTS → M4 验证发布）。**规划稿，未实施**。
 
+- `137-修复-Office预览全部失效（资源地址armor补丁）.md` —— 2026-11-14：**v1.1.8 事故**。rc.2 压缩产物的"资源地址 armor"补丁漏写 `.hostname` ⇒ `protocolOf()` 把 URL 对象当字符串 `.toLowerCase()` ⇒ 任何 `dsh-resource://` 解析抛 TypeError ⇒ 右侧文档预览页签崩溃 ⇒ 点 doc/ppt/xlsx 无反应（宿主侧 0 请求）。修复 = `pack-core` 压缩分支两处带 `.hostname` + 门禁新增 2 条**语义判据**与负测试 `M0`；coreVersion 升 `0.2.2-rc.2+whale.2`，1.1.9/1010009。新 core zip 152,790,798 B sha `80ee08c1…`（与旧容器逐条目只差 3 项）；未签名发布件 437,791,078 B sha `b0dbe0bd…`。遗留：`--self-test` 的 M10 是 rc.2 换核时的既有红（DEDUP 4 条上游原文判据失效），本次未动。
+
 其它调研材料（官方桌面端 README、上游协议包文档副本、社区工程浅克隆等）按需放在同一目录即可，不入库。
 
