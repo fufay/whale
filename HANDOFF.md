@@ -21,12 +21,14 @@
 - **产物**：core zip 152,790,798 B / 57,885 条目 / sha `80ee08c1…`（与旧容器逐条目只差 3 项：该 client.js +18 B、package.json、dshm-core.json）；
   本机验证件 `whale-verify-1.1.9-vc1010001.hap` 440,166,234 B sha `9d4c2770…`（已 `install -r`）；
   未签名发布件 437,791,078 B sha `b0dbe0bd…`（124 条目全 STORED、无签名条目）。
-- **门禁**：补丁 **163/0**；resfile-core-zip / entrypoints / resfile-sync / office2pdf-wiring / rg-selfsigned / exec-fix 全过。
+- **门禁**：补丁 **163/0**（加语义判据后 **166/0**）；resfile-core-zip / entrypoints / resfile-sync / office2pdf-wiring / rg-selfsigned / exec-fix 全过。
 - **门禁配套修复**：`--self-test` 的 M10 既有红（rc.2 压缩后 DEDUP 4 条上游原文判据失效，非本次引入）已修 ——
   `DEDUP_UPSTREAM_RESTORED` 改**双形态**（源码 + 压缩各一），审计不再跳过；M10/复核改用 `mutateDedupRestored()`
   （改不到任何形态即抛错）。读数：审计 **166/0**、`--self-test` **155 用例 / 0 不合格（PASS）**。
 - **发布**：v1.1.9 已发 GitHub + AtomGit（`whale-unsigned.hap` 437,791,078 B sha `b0dbe0bd…`；原子件 size/digest 已核对）。
-- **待办**：真机冒烟（重启后点 doc/ppt/xlsx）。
+- **真机验证（2026-11-14 15:30，用户重启 WhaleX 后）✅**：设备树切到 `0.2.2-rc.2+whale.2`；
+  宿主日志出现修复后的完整链路 —— `/api/officeKit/generation`→200、**`/api/officeKit/render`→200（248 ms / 11,771 ms）**、
+  `/api/workspaceFiles/{readBytes,stat}`→200；`/dshm-office2pdf/convert` 命中数 8→12。用户确认 doc/pptx/xlsx **恢复渲染**。
 - 细节：`docs/137`。
 
 ## 0.8 2026-11-12：语音功能**搁置**（D-025）

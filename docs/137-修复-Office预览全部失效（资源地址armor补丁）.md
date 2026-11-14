@@ -72,6 +72,14 @@ function protocolOf(address){
 - 本机验证件：`whale-verify-1.1.9-vc1010001.hap` **440,166,234 B** sha256 `9d4c2770202cad57cb8d90788343812d834b50366539fd33f1138bb4af624384`（versionCode 1010001，已 `install -r`）。
 - 发布件（未签名）：`dist/release/whale-unsigned.hap` **437,791,078 B** sha256 `b0dbe0bd047a80dd12d36b36748e75ae19e13e190ab2fc89f1b4eb639dcc70c0`（124 条目全 STORED、无签名条目、内嵌新容器 sha 与上一致）。
 
+## 6.1 真机验证（2026-11-14 15:30，用户重启 WhaleX 后）✅
+
+- 设备核心树切到 **`0.2.2-rc.2+whale.2`**（`dshm-core.json` 读数）；旧树 `+whale.1` 仍在 `cores/` 下（可另行清理）。
+- 宿主日志出现修复后的完整链路（此前一条都没有）：
+  `/api/officeKit/generation` → 200、**`/api/officeKit/render` → 200（248 ms / 11,771 ms）**、
+  `/api/workspaceFiles/{readBytes,stat}` → 200；`POST /dshm-office2pdf/convert` 命中数 **8 → 12**。
+- 用户确认：侧栏 **docx / pptx / xlsx 恢复渲染**。
+
 ## 7. 经验
 
 - **"注入片段在" ≠ "注入代码语义正确"**：门禁对"注入型补丁"至少要有一条语义断言（此处是 `.hostname`），
