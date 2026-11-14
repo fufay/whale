@@ -22,7 +22,11 @@
   本机验证件 `whale-verify-1.1.9-vc1010001.hap` 440,166,234 B sha `9d4c2770…`（已 `install -r`）；
   未签名发布件 437,791,078 B sha `b0dbe0bd…`（124 条目全 STORED、无签名条目）。
 - **门禁**：补丁 **163/0**；resfile-core-zip / entrypoints / resfile-sync / office2pdf-wiring / rg-selfsigned / exec-fix 全过。
-- **待办**：真机冒烟（重启后点 doc/ppt/xlsx）；`--self-test` 的 **M10 既有红**（rc.2 压缩后 DEDUP 4 条上游原文判据失效，非本次引入）待另修。
+- **门禁配套修复**：`--self-test` 的 M10 既有红（rc.2 压缩后 DEDUP 4 条上游原文判据失效，非本次引入）已修 ——
+  `DEDUP_UPSTREAM_RESTORED` 改**双形态**（源码 + 压缩各一），审计不再跳过；M10/复核改用 `mutateDedupRestored()`
+  （改不到任何形态即抛错）。读数：审计 **166/0**、`--self-test` **155 用例 / 0 不合格（PASS）**。
+- **发布**：v1.1.9 已发 GitHub + AtomGit（`whale-unsigned.hap` 437,791,078 B sha `b0dbe0bd…`；原子件 size/digest 已核对）。
+- **待办**：真机冒烟（重启后点 doc/ppt/xlsx）。
 - 细节：`docs/137`。
 
 ## 0.8 2026-11-12：语音功能**搁置**（D-025）

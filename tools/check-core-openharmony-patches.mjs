@@ -281,12 +281,57 @@ const DEDUP_REL = 'dsh-client-ui-sidebar-documentpreview/lib/client.js';
 const DEDUP_MARKERS = ['DSHM_DOC_LOAD_DEDUP', 'dshmLoadKeyRef', 'dshmAbortRef', 'dshmSignal'];
 // 上游原文形态（撤除后必须恢复）：effect 的 started 早退行 + 三个加载调用点用 owner 的 `signal`。
 // 这三条调用点**逐字**取自 pack-core 原 dedupDocumentLoad() 的 `callAnchors`（即"被 replace 掉的上游原文"）。
+//
+// 【2026-11-14 补压缩形态】rc.2 起该文件是压缩产物（整文件 2 行），可读源码形态的原文不再存在。
+// 每条给 forms[]：任一形态命中即算"已恢复"（旧树/可读树走源码形态，新树走压缩形态）。
+// 这样 M10 的负测试对**两种树**都成立 —— 之前 M10 只 mutate 源码形态，在 rc.2 树上变成空转变红。
 const DEDUP_UPSTREAM_RESTORED = [
-  ['const started = current !== void 0;', 'effect 的 started 早退行（上游原文）'],
-  ['if (mode === "text-pages") loadPage(tab.id, file, 1, signal, meta.value?.version);', '加载调用点①（上游形态：用 owner 的 signal）'],
-  ['else if (mode === "bytes-complete") loadAll(tab.id, file, signal, meta.value?.version);', '加载调用点②（上游形态：整读用 owner 的 signal ⇒ 不再有面板自持 abort）'],
-  ['else prepareRenderer(tab.id, signal, selected.id, meta.value?.version);', '加载调用点③（上游形态）'],
+  {
+    label: 'effect 的 started 早退行（上游原文）',
+    forms: ['const started = current !== void 0;', 'const started=current!==void 0;'],
+  },
+  {
+    label: '加载调用点①（上游形态：用 owner 的 signal）',
+    forms: [
+      'if (mode === "text-pages") loadPage(tab.id, file, 1, signal, meta.value?.version);',
+      'if(mode===`text-pages`)loadPage(tab.id,file,1,signal,meta.value?.version);',
+    ],
+  },
+  {
+    label: '加载调用点②（上游形态：整读用 owner 的 signal ⇒ 不再有面板自持 abort）',
+    forms: [
+      'else if (mode === "bytes-complete") loadAll(tab.id, file, signal, meta.value?.version);',
+      'else if(mode===`bytes-complete`)loadAll(tab.id,file,signal,meta.value?.version);',
+    ],
+  },
+  {
+    label: '加载调用点③（上游形态）',
+    forms: [
+      'else prepareRenderer(tab.id, signal, selected.id, meta.value?.version);',
+      'else prepareRenderer(tab.id,signal,selected.id,meta.value?.version)',
+    ],
+  },
 ];
+
+/**
+ * M10 负测试用的变异：把每一条"上游原文"的**任一在树形态**改成残留态（signal → ownerSignal /
+ * `void 0` → `undefined`），并返回改了几个形态（0 = 一条都没命中 ⇒ 判据表已与树脱节）。
+ */
+function mutateDedupRestored(text) {
+  let hits = 0;
+  let out = text;
+  for (const entry of DEDUP_UPSTREAM_RESTORED) {
+    for (const form of entry.forms) {
+      if (!out.includes(form)) continue;
+      hits += 1;
+      out = out.replace(form, form.includes('signal')
+        ? form.replace(/signal/g, 'ownerSignal')
+        : form.replace('void 0', 'undefined'));
+    }
+  }
+  return { text: out, hits };
+}
+
 
 /* ── 逐字抄自 pack-core 替换模板的"上游原文"（反向判据专用） ── */
 // pack-core.mjs:1961 —— patchLinkForSandbox 的 import 行（注入后多了 access/rename ⇒ 此串必消失）
@@ -1525,20 +1570,18 @@ function audit(scope) {
         }
       }
       /*
-       * 2026-11-12（0.2.2-rc.2）：该文件已变成压缩产物（整文件 2 行），可读源码形态的"上游原文"
-       * 不存在了。判据降级为：**标记全部 0 次**（上面已判）+ 记录一句说明，不再按可读文本断言。
-       * 真正防"半截补丁"的判据仍在 —— 标记名/`dshmSignal` 残留都会被上面清点出来。
+       * 2026-11-12（0.2.2-rc.2）：该文件已变成压缩产物（整文件 2 行），可读源码形态的"上游原文"不存在了。
+       * 2026-11-14：改成**双形态判据** —— 每条原文给「源码形态 + 压缩形态」两种写法，任一命中即算已恢复。
+       * 之前这里是"压缩产物 ⇒ 直接跳过逐字判据"，结果 M10 负测试在 rc.2 树上空转（mutate 源码形态
+       * 一条都改不到 ⇒ positives=0 ⇒ self-test 红）。现在两种树都按同一套语义断言，负测试才有意义。
        */
-      const compact = text.length / Math.max(1, text.split('\n').length) > 200; // 平均行长 >200 视为压缩产物
-      if (compact) {
-        ok('撤除守卫：上游文件已是压缩产物（rc.2 起）⇒ 恢复原文的逐字判据不适用；以标记 0 次为准');
-      } else {
-        for (const [lit, label] of DEDUP_UPSTREAM_RESTORED) {
-          if (text.includes(lit)) ok(`撤除守卫：上游原文已恢复 —— ${label}`);
-          else {
-            bad(`撤除守卫：找不到恢复后的上游原文（${label}）—— ${JSON.stringify(lit.slice(0, 70))}… `
-              + '撤除不干净（半截补丁：标记删了但调用点还指着 dshmSignal），或上游实现已变而门禁需同步复核');
-          }
+      for (const entry of DEDUP_UPSTREAM_RESTORED) {
+        if (entry.forms.some((lit) => text.includes(lit))) {
+          ok(`撤除守卫：上游原文已恢复 —— ${entry.label}`);
+        } else {
+          bad(`撤除守卫：找不到恢复后的上游原文（${entry.label}）—— `
+            + `${JSON.stringify(entry.forms[0].slice(0, 70))}… / 压缩形态 ${JSON.stringify(entry.forms[1].slice(0, 70))}… 都不在 `
+            + '撤除不干净（半截补丁：标记删了但调用点还指着 dshmSignal），或上游实现已变而门禁需同步复核');
         }
       }
     }
@@ -1812,11 +1855,12 @@ function selfTest() {
        */
       {
         name: 'M10 撤除守卫的 4 条正向判据：上游原文被逐条改写（标记一个都不加）→ 4 条各自红',
-        run: () => mutate(DEDUP_REL, (t) => t
-          .replace(DEDUP_UPSTREAM_RESTORED[0][0], 'const started = current !== void 0, dshmKeepLocal = started;')
-          .replace(DEDUP_UPSTREAM_RESTORED[1][0], DEDUP_UPSTREAM_RESTORED[1][0].replace(', signal,', ', ownerSignal,'))
-          .replace(DEDUP_UPSTREAM_RESTORED[2][0], DEDUP_UPSTREAM_RESTORED[2][0].replace(', signal,', ', ownerSignal,'))
-          .replace(DEDUP_UPSTREAM_RESTORED[3][0], DEDUP_UPSTREAM_RESTORED[3][0].replace('tab.id, signal,', 'tab.id, ownerSignal,'))),
+        run: () => mutate(DEDUP_REL, (t) => {
+          const m = mutateDedupRestored(t);
+          // 一条形态都没改到 ⇒ 判据表与树脱节（之前 rc.2 压缩树就是这样变成空转的）
+          if (m.hits === 0) throw new Error('M10 变异没命中任何上游原文形态（判据表与树脱节）');
+          return m.text;
+        }),
         expect: /找不到恢复后的上游原文/,
         only: /撤除守卫/,
       },
@@ -1865,11 +1909,11 @@ function selfTest() {
      * 且"标记 ×0"那 4 条仍为 ok —— 否则"只该正向判据红"这句话只是恰好成立。 */
     {
       restoreAll();
-      mutate(DEDUP_REL, (t) => t
-        .replace(DEDUP_UPSTREAM_RESTORED[0][0], 'const started = current !== void 0, dshmKeepLocal = started;')
-        .replace(DEDUP_UPSTREAM_RESTORED[1][0], DEDUP_UPSTREAM_RESTORED[1][0].replace(', signal,', ', ownerSignal,'))
-        .replace(DEDUP_UPSTREAM_RESTORED[2][0], DEDUP_UPSTREAM_RESTORED[2][0].replace(', signal,', ', ownerSignal,'))
-        .replace(DEDUP_UPSTREAM_RESTORED[3][0], DEDUP_UPSTREAM_RESTORED[3][0].replace('tab.id, signal,', 'tab.id, ownerSignal,')));
+      mutate(DEDUP_REL, (t) => {
+        const m = mutateDedupRestored(t);
+        if (m.hits === 0) throw new Error('M10 复核变异没命中任何上游原文形态');
+        return m.text;
+      });
       const res = audit(scope);
       const positives = res.fails.filter((f) => /找不到恢复后的上游原文/.test(f));
       const markerOk = res.notes.filter((n) => /撤除守卫：.* ×0（撤除后未复活）/.test(n)).length;
