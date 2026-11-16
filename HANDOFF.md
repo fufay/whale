@@ -3,11 +3,32 @@
 > **这是当前状态，不是规则。** 规则看 `AGENTS.md`；决策看 `DECISIONS.md`；细节看 `docs/README.md`。
 > 每次开工先读本文件，收尾必须更新本文件。目标 1–2 页，不写过程流水账。
 
-**最后更新**：2026-11-14
+**最后更新**：2026-11-16
 **仓库**：`Common/whale` · 分支 `main` · 本次 HEAD 以 `git log` 为准（历史已压缩为「自足单体提交 + 后续修复提交」，不再是 §2 记录的 10-24 那批短哈希）
 **工作树**：`git status` 为准；`hostcore/**` 有改动时须 `place-host-app` 同步（本轮未动 hostcore）
-**核心树口径**：以 `hostcore/core-recipe.json` 为准，当前读数 **`0.2.2-rc.2+whale.2`**（2026-11-14 修 v1.1.8 的 Office 预览崩溃，见 §0.9）
+**核心树口径**：以 `hostcore/core-recipe.json` 为准，当前读数 **`0.2.2-rc.3+whale.1`**（2026-11-16 换核，见 §0.10）
 **签名口径**：开发包默认用 365 天无 ACL 调试 Profile（`dist/signing/dev-profile/whale-dev-debug.p7b`，见 `docs/125` §八）
+
+## 0.10 2026-11-16（v1.1.10）：核心升级 `0.2.2-rc.2+whale.2` → `0.2.2-rc.3+whale.1`
+
+- **预检**（`dist/rc3-precheck/report.md`）：rc.3 相对 rc.2 实质只新增 1 个可选/实验 bundle
+  `dsh-deepseek-chat-import`（DeepSeek 聊天导出→workspace stored session，纯 JS、默认不启用）；
+  **18 个补丁目标包除 `package.json` 外逐字节一致 ⇒ 22 处注入零锚点返工**；typert 契约不变（仍 158）。
+- **动作**：`coreVersion` → `0.2.2-rc.3+whale.1`；`npm install`（node24 的 npm，4 分钟 / 668 包）→
+  `pack-core --skip-install --place-in-app`；`AppScope` → 1.1.10/1010010。
+- **产物**：core zip **147.0 MB / 58,474 条目 / sha `66f0a854…`**（resfile 已 place、旧容器清）；
+  本机验证件 `whale-verify-1.1.10-vc1010001.hap` **441,476,957 B** sha `ff9d65c9…`（已 install -r）。
+- **门禁**：补丁 **166/0**、`--self-test` PASS、resfile-core-zip / entrypoints / resfile-sync / office2pdf /
+  rg-selfsigned / exec-fix / cli-shim / parity / ptc-wiring / native-closure / fetch-shim / arch-check /
+  doc-refs / dead-code 全 exit 0；`compat-drift` 刷新 `contracts.json` 后 **158 端点 / 零漂移**。
+- **坑（新）**：`pack-core` 内置 `npm install` 在设备上 `spawnSync` 返回 `exit=null`（被信号杀）⇒
+  先手动 `npm install` 再 `--skip-install`（详见 `docs/138` §4）。
+- **真机验收（2026-11-16，用户实测全部通过 ✅）**：核心树切到 `0.2.2-rc.3+whale.1`；Office 预览（docx/pptx/xlsx）正常；
+  grep / glob 正负向正常；内置终端（zsh）交互 + Ctrl-C + exit 正常；bash 工具 `uname/python3/git` 正常；
+  插件页「更多」出现新实验项 `DeepSeek 聊天导入`（默认关）。
+- **发布**：v1.1.10 / 1010010 已发 GitHub + AtomGit（`whale-unsigned.hap` 439,100,717 B sha `e03125e8…`）。
+- **待办**：`dsh-deepseek-chat-import` 是否启用（待产品决定，默认关）。
+- 细节：`docs/138`。
 
 ## 0.9 2026-11-14（v1.1.9）：修 v1.1.8 的 Office 预览全崩（资源地址 armor 补丁漏 `.hostname`）
 
