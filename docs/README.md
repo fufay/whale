@@ -161,5 +161,7 @@
 
 - `138-核心升级到0.2.2-rc.3（换核记录）.md` —— 2026-11-16：升 `@deepseek-ai/dsh` **0.2.2-rc.3**（coreVersion `0.2.2-rc.3+whale.1`，应用 1.1.10/1010010）。上游实质只新增 1 个可选/实验 bundle `dsh-deepseek-chat-import`（DeepSeek 聊天导出→workspace stored session，纯 JS、默认不启用）；**我们打过补丁的 18 个包除 `package.json` 外逐字节一致 ⇒ 22 处注入零锚点返工**；typert 契约不变（仍 158 端点、compat-drift 零漂移）。core zip 147.0 MB / 58,474 条目 sha `66f0a854…`；门禁全绿（补丁 166/0、self-test PASS）。坑：`pack-core` 内置 npm install 在设备上 `exit=null` ⇒ 先手动 npm install 再 `--skip-install`。
 
+- `139-核心升级到0.2.2-rc.4（换核记录）.md` —— 2026-11-18：升 `@deepseek-ai/dsh` **0.2.2-rc.4**（coreVersion `0.2.2-rc.4+whale.1`，应用 1.1.11/1010011）。rc.4 是修复版：DeepSeek 流式拒答错误码 `MALFORMED_RESPONSE` → 新增 **`CONTENT_REFUSED`**（+ liveshare 的 Electron worker 环境继承，与端侧无关）；补丁目标包仍**除 `package.json` 外逐字节一致**（零锚点返工），typert 契约不变（158 端点、零漂移），无新 bundle。core zip 147.0 MB / 58,477 条目 sha `77d350ec…`；门禁补丁 166/0、self-test PASS。
+
 其它调研材料（官方桌面端 README、上游协议包文档副本、社区工程浅克隆等）按需放在同一目录即可，不入库。
 
