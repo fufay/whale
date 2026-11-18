@@ -22,7 +22,9 @@
 - **门禁**：补丁 **166/0**、`--self-test` PASS；resfile-core-zip / entrypoints / resfile-sync / office2pdf-wiring /
   rg-selfsigned / exec-fix / cli-shim / parity / ptc-wiring / native-closure / fetch-shim / arch-check /
   doc-refs / dead-code 全 exit 0；`compat-drift`（刷新 contracts.json 后）**158 端点 / 零漂移**。
-- **待办**：真机重启验收；发布 v1.1.11（GitHub + AtomGit）。
+- **真机验收（2026-11-18，用户实测正常 ✅）**：核心树切到 `0.2.2-rc.4+whale.1`；Office 预览 / grep / glob / 终端 / 插件页均正常。
+- **发布**：v1.1.11 / 1010011 已发 GitHub + AtomGit（`whale-unsigned.hap` 439,109,043 B sha `a485bd04…`；AtomGit size/digest 已核对）。
+- **待办**：无。
 - 细节：`docs/139`。
 
 ## 0.10 2026-11-16（v1.1.10）：核心升级 `0.2.2-rc.2+whale.2` → `0.2.2-rc.3+whale.1`
