@@ -277,6 +277,8 @@ const PROFILE_DIR = 'profiles/ondevice';
  */
 // 【路径基准是 scope（`<tree>/node_modules/@deepseek-ai`），与 ①②③ 段一致；④⑤ 组才用树根相对】
 const DEDUP_REL = 'dsh-client-ui-sidebar-documentpreview/lib/client.js';
+// ⑱ web_search 抖动重试：**树根相对**路径（INJECTED_PATCHES 的 site.rel 走树根口径）
+const WEB_SEARCH_RETRY_LIB = 'node_modules/@deepseek-ai/dsh-web-search-deepseek/lib/index.js';
 // 注入标记 + 它引入的三个标识符（注入后各出现；撤除后必须 0 次）。`dshmLoadKey` 是 `dshmLoadKeyRef` 的前缀，故不单列。
 const DEDUP_MARKERS = ['DSHM_DOC_LOAD_DEDUP', 'dshmLoadKeyRef', 'dshmAbortRef', 'dshmSignal'];
 // 上游原文形态（撤除后必须恢复）：effect 的 started 早退行 + 三个加载调用点用 owner 的 `signal`。
@@ -1173,6 +1175,32 @@ const INJECTED_PATCHES = [
       structural: treeInfoStructural,
     }],
   },
+
+  /* ── ⑱ web_search 抖动重试（v1.1.12，包装式） ── */
+  {
+    key: 'web_search 抖动重试',
+    fn: 'patchWebSearchRetry()',
+    note: 'rc.5 起 web 搜索默认「按模型路由自动选择」，DeepSeek 路由上走 `deepseek-official`（一个带服务端 '
+      + '`web_search_20250305` 工具的 Messages 回合）；模型偶尔不触发工具 ⇒ 响应无 `web_search_tool_result` 块 '
+      + '⇒ 上游抛 `WEB_PROVIDER_ERROR` 且不重试，而 `dsh-tool-web` 多 query 是 all-or-nothing ⇒ 批量失败率被放大。'
+      + '本补丁把 provider 的 `search()` 改名 `searchOnce()` 并在前面包一层：**仅**对该错误重试，最多 3 次尝试；'
+      + '取消信号 abort 时立即放弃。反向判据 = 原 `search()` 入口（`async search(request, signal) {` 紧跟 '
+      + '`const options = this.resolveOptions();`）不得再作为方法入口出现（包装后它只剩 `searchOnce` 形态）。',
+    sites: [{
+      rel: WEB_SEARCH_RETRY_LIB,
+      markers: [['DSHM_WEB_SEARCH_RETRY', 1]],
+      forward: [
+        ['const transient = error !== null && typeof error === "object"', '重试判定起点（只对结构化错误）'],
+        ['&& error.code === "WEB_PROVIDER_ERROR"', '只重试未触发服务端搜索这一类错误（不碰鉴权/网络/参数错）'],
+        ['&& message.includes("no web_search_tool_result blocks");', '判据原文（上游该错误的消息）'],
+        ['if (!transient || attempt >= 2 || signal?.aborted === true) throw error;', '最多 3 次尝试；取消即放弃'],
+        ['async searchOnce(request, signal) {', '原 search() 被重命名成 searchOnce（包装体存在）'],
+      ],
+      reverse: [
+        ['async search(request, signal) {\n\t\tconst options = this.resolveOptions();', '上游原 search() 方法入口（包装后不该再以方法形态出现）'],
+      ],
+    }],
+  },
 ];
 
 /**
@@ -1887,6 +1915,14 @@ function selfTest() {
         )),
         expect: /没有 DSHM_PROFILE_PNPM_BRIDGE/,
         only: /profile 包通道补丁/,
+      },
+      /* ── M13：⑱ web_search 抖动重试 —— 包装被回退（原 search() 入口复活）⇒ 只该这一组红 ── */
+      {
+        name: 'M13 web_search 重试包装被回退（原 search() 入口复活，标记仍在）→ ⑱反向判据红',
+        run: () => mutate('dsh-web-search-deepseek/lib/index.js',
+          (t) => `${t}\n\tasync search(request, signal) {\n\t\tconst options = this.resolveOptions();\n\t}\n`),
+        expect: /上游原文仍在|web_search 抖动重试/,
+        only: /web_search 抖动重试/,
       },
     ];
 

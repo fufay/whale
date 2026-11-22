@@ -3137,6 +3137,59 @@ function patchResourceAddressArmor() {
     },
   ]);
 }
+/*
+ * web_search 抖动重试（2026-11-22，v1.1.12）
+ *
+ * 【病】rc.5 起 web 搜索默认「按模型路由自动选择」，DeepSeek 路由上选 `deepseek-official`
+ * —— 它把搜索实现为"一个带服务端 web_search_20250305 工具的 Messages 回合"，然后要求响应里
+ * 出现 `web_search_tool_result` 块。模型那一回合**是否真的触发该工具是概率事件**（实测约 2/3 成功），
+ * 没触发时上游直接抛 `WEB_PROVIDER_ERROR`（"no web_search_tool_result blocks"），
+ * **无重试、无降级**；又因为 `dsh-tool-web` 多 query 是 all-or-nothing（任一失败就 abort 整批），
+ * 批量调用的失败率被放大到 ~30%~50%。
+ *
+ * 【修】只给这一个 provider 的 `search()` 套一层重试：命中的错误**仅限**
+ * `WEB_PROVIDER_ERROR` 且 message 含 "no web_search_tool_result blocks"（不重试鉴权/网络/参数错），
+ * 最多 3 次尝试；`signal.aborted` 一旦为真立即放弃（不阻塞取消）。
+ * 实现方式 = 把原 `search()` 改名 `searchOnce()`，前面加一个薄 wrapper —— 不动上游逻辑，
+ * 上游后续改版时锚点（`\tasync search(request, signal) {`）若漂移，pack-core 会 die 而不是静默跳过。
+ */
+function patchWebSearchRetry() {
+  const file = join(STAGE, 'node_modules', '@deepseek-ai', 'dsh-web-search-deepseek', 'lib', 'index.js');
+  if (!existsSync(file)) die(`web_search 重试补丁：找不到 ${file}`);
+  let text = readFileSync(file, 'utf8');
+  const MARK = 'DSHM_WEB_SEARCH_RETRY';
+  if (text.includes(MARK)) {
+    log('[pack-core]   web_search 抖动重试补丁已存在（跳过）');
+    return;
+  }
+  const before = '\tasync search(request, signal) {';
+  if (!text.includes(before)) {
+    die('web_search 重试补丁：找不到 provider 的 `async search(request, signal) {` 锚点（上游结构变化？），拒绝静默跳过');
+  }
+  const after = [
+    '\t/* ' + MARK + '：上游这个 provider 是"一个带服务端 web_search 工具的模型回合"，',
+    '\t   模型偶尔不触发工具 ⇒ 响应无 web_search_tool_result 块 ⇒ 上游直接抛 WEB_PROVIDER_ERROR。',
+    '\t   这里只对该错误重试（最多 3 次尝试），其它错误与取消一律原样抛出。 */',
+    '\tasync search(request, signal) {',
+    '\t\tlet attempt = 0;',
+    '\t\tfor (;;) {',
+    '\t\t\ttry {',
+    '\t\t\t\treturn await this.searchOnce(request, signal);',
+    '\t\t\t} catch (error) {',
+    '\t\t\t\tconst message = String(error && error.message ? error.message : error);',
+    '\t\t\t\tconst transient = error !== null && typeof error === "object"',
+    '\t\t\t\t\t&& error.code === "WEB_PROVIDER_ERROR"',
+    '\t\t\t\t\t&& message.includes("no web_search_tool_result blocks");',
+    '\t\t\t\tif (!transient || attempt >= 2 || signal?.aborted === true) throw error;',
+    '\t\t\t\tattempt += 1;',
+    '\t\t\t}',
+    '\t\t}',
+    '\t}',
+    '\tasync searchOnce(request, signal) {',
+  ].join('\n');
+  writeFileSync(file, text.replace(before, after), 'utf8');
+  log('[pack-core]   web_search 抖动重试：已注入（仅 no-blocks 的 WEB_PROVIDER_ERROR，最多 3 次尝试）');
+}
 function patchSidebarTabIdLeak() {
   const target = join(STAGE, 'node_modules', '@deepseek-ai', 'dsh-client-ui-sidebar-right', 'lib', 'client.js');
   if (!existsSync(target)) die(`侧栏页签守卫补丁：找不到 ${target}`);
@@ -3609,6 +3662,7 @@ patchAttachmentLocalCause();
  * 找不到待替换片段会 die，不会静默跳过 —— 上游升级后这里会立刻暴露，而不是悄悄失效。
  */
 patchResourceAddressArmor();
+patchWebSearchRetry();
 patchPdfMapCompat();
 patchSubprocessOpenharmony();
 patchSidebarTabIdLeak();

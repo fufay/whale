@@ -6,7 +6,7 @@
 **最后更新**：2026-11-22
 **仓库**：`Common/whale` · 分支 `main` · 本次 HEAD 以 `git log` 为准（历史已压缩为「自足单体提交 + 后续修复提交」，不再是 §2 记录的 10-24 那批短哈希）
 **工作树**：`git status` 为准；`hostcore/**` 有改动时须 `place-host-app` 同步（本轮未动 hostcore）
-**核心树口径**：以 `hostcore/core-recipe.json` 为准，当前读数 **`0.2.2-rc.5+whale.1`**（2026-11-22 换核，见 §0.12）
+**核心树口径**：以 `hostcore/core-recipe.json` 为准，当前读数 **`0.2.2-rc.5+whale.2`**（2026-11-22 换核 + web_search 重试补丁，见 §0.12）
 **签名口径**：开发包默认用 365 天无 ACL 调试 Profile（`dist/signing/dev-profile/whale-dev-debug.p7b`，见 `docs/125` §八）
 
 ## 0.12 2026-11-22（v1.1.12）：核心升级 `0.2.2-rc.4+whale.1` → `0.2.2-rc.5+whale.1`
@@ -26,7 +26,14 @@
   doc-refs / dead-code 全 exit 0；`compat-drift` **158 端点 / 零漂移**。
 - **附**：本次 npm install 直接依赖集合与 rc.4 相同（598 个包），但 **349 个版本变化** —— `@deepseek-ai/*` 定向升级 +
   `^` 范围内传递依赖自然漂移（如 `@aws-sdk/*` 补丁号 +1）；核心树条目 58,477→58,749、解包 492.9→496.8 MB。
-- **待办**：真机验收（含 web_search）；发布 v1.1.12。
+- **web_search 抖动修复（同日，`coreVersion +whale.2`）**：真机实测 rc.5 默认「自动选择」在 DeepSeek 路由上走
+  `deepseek-official`（Messages 搜索），单次成功率约 2/3 —— 模型偶尔不触发服务端 `web_search_20250305` 工具 ⇒
+  响应无 `web_search_tool_result` 块 ⇒ 上游抛 `WEB_PROVIDER_ERROR` 且**不重试**；`dsh-tool-web` 多 query all-or-nothing
+  又放大失败率。⇒ 新增第 23 处注入 `patchWebSearchRetry()`：仅对该错误重试，最多 3 次尝试（`signal.aborted` 即放弃）。
+  门禁新增 ⑱ 组（7 条判据）+ M13 负测试：**173/0**、`--self-test` **163 用例 / 0 不合格**。
+  core zip 换 `+whale.2`（147.9 MB / 58,748 条目 sha `b715535c…`）；验证件 `whale-verify-1.1.12-vc1010001.hap`
+  **442,484,568 B** sha `5784fe9a…`（已装机）。**用户实测重试版第一轮不再失败。**
+- **待办**：发布 v1.1.12（含 +whale.2 重试核心；GitHub + AtomGit）。
 - 细节：`docs/140`。
 
 ## 0.11 2026-11-18（v1.1.11）：核心升级 `0.2.2-rc.3+whale.1` → `0.2.2-rc.4+whale.1`
