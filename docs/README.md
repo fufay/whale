@@ -163,5 +163,7 @@
 
 - `139-核心升级到0.2.2-rc.4（换核记录）.md` —— 2026-11-18：升 `@deepseek-ai/dsh` **0.2.2-rc.4**（coreVersion `0.2.2-rc.4+whale.1`，应用 1.1.11/1010011）。rc.4 是修复版：DeepSeek 流式拒答错误码 `MALFORMED_RESPONSE` → 新增 **`CONTENT_REFUSED`**（+ liveshare 的 Electron worker 环境继承，与端侧无关）；补丁目标包仍**除 `package.json` 外逐字节一致**（零锚点返工），typert 契约不变（158 端点、零漂移），无新 bundle。core zip 147.0 MB / 58,477 条目 sha `77d350ec…`；门禁补丁 166/0、self-test PASS。
 
+- `140-核心升级到0.2.2-rc.5（换核记录）.md` —— 2026-11-22：升 `@deepseek-ai/dsh` **0.2.2-rc.5**（coreVersion `0.2.2-rc.5+whale.1`，应用 1.1.12/1010012）。本版功能性变更集中在 **web 搜索提供方默认值**（改为按模型路由自动选择：DeepSeek 路由用 legacy Messages 搜索，其它用 Search API；`dsh-tool-web` 传 `llmProvider`、`dsh-web-search-deepseek` 解析改进）；补丁目标包仅 `dsh-base/cordis.patch.yml` 有变且 `fs-sandbox` 锚点仍在 ⇒ 零返工；typert 契约不变（158 端点）。core zip 147.9 MB / 58,749 条目 sha `a72d4d35…`；门禁 166/0、self-test PASS；附「传递依赖自然漂移」读数。
+
 其它调研材料（官方桌面端 README、上游协议包文档副本、社区工程浅克隆等）按需放在同一目录即可，不入库。
 

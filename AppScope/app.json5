@@ -2,8 +2,8 @@
   "app": {
     "bundleName": "com.jwhsoft.whale",
     "vendor": "whale",
-    "versionCode": 1010011,
-    "versionName": "1.1.11",
+    "versionCode": 1010012,
+    "versionName": "1.1.12",
     "icon": "$media:layered_image",
     "label": "$string:app_name"
   }

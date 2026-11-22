@@ -3,11 +3,31 @@
 > **这是当前状态，不是规则。** 规则看 `AGENTS.md`；决策看 `DECISIONS.md`；细节看 `docs/README.md`。
 > 每次开工先读本文件，收尾必须更新本文件。目标 1–2 页，不写过程流水账。
 
-**最后更新**：2026-11-18
+**最后更新**：2026-11-22
 **仓库**：`Common/whale` · 分支 `main` · 本次 HEAD 以 `git log` 为准（历史已压缩为「自足单体提交 + 后续修复提交」，不再是 §2 记录的 10-24 那批短哈希）
 **工作树**：`git status` 为准；`hostcore/**` 有改动时须 `place-host-app` 同步（本轮未动 hostcore）
-**核心树口径**：以 `hostcore/core-recipe.json` 为准，当前读数 **`0.2.2-rc.4+whale.1`**（2026-11-18 换核，见 §0.11）
+**核心树口径**：以 `hostcore/core-recipe.json` 为准，当前读数 **`0.2.2-rc.5+whale.1`**（2026-11-22 换核，见 §0.12）
 **签名口径**：开发包默认用 365 天无 ACL 调试 Profile（`dist/signing/dev-profile/whale-dev-debug.p7b`，见 `docs/125` §八）
+
+## 0.12 2026-11-22（v1.1.12）：核心升级 `0.2.2-rc.4+whale.1` → `0.2.2-rc.5+whale.1`
+
+- **上游 rc.5 已是 `latest`**（`next`/`latest` 都是 rc.5；另有 `0.2.3-alpha.2` 开发线）。
+- **预检**（`dist/rc5-precheck/report.md`）：依赖 91→91 无增删；补丁目标包**仅 `dsh-base/cordis.patch.yml` 有内容变化**
+  （`web` 行删掉 `searchProvider`），我们 `fs-sandbox` 行锚点**原样在** ⇒ 22 处注入零返工；typert 契约不变（158 端点）。
+- **功能性变更**：web 搜索提供方改为**按模型路由自动选择**（DeepSeek 路由走 legacy Messages 搜索，其它走 Search API）；
+  `dsh-tool-web` 传 `llmProvider`、`dsh-web-search-deepseek` 解析改进。⚠ 本版唯一需真机验的行为变化是 **`web_search`**
+  （profile 未固定 `searchProvider`；失败则在设置页固定为 DeepSeek Search API，或在 profile 给 `web` 行钉回）。
+- **动作**：`coreVersion` → `0.2.2-rc.5+whale.1`；`AppScope` → 1.1.12 / 1010012；手动 npm install（2 分钟 / 598 包）→
+  `pack-core --skip-install --place-in-app`。
+- **产物**：core zip **147.9 MB / 58,749 条目 / sha `a72d4d35…`**（resfile 已 place、旧容器清）；
+  本机验证件 `whale-verify-1.1.12-vc1010001.hap` **442,484,567 B** sha `3efdf9df…`（已 install -r）。
+- **门禁**：补丁 **166/0**、`--self-test` PASS；resfile-core-zip / entrypoints / resfile-sync / office2pdf-wiring /
+  rg-selfsigned / exec-fix / cli-shim / parity / ptc-wiring / native-closure / fetch-shim / arch-check /
+  doc-refs / dead-code 全 exit 0；`compat-drift` **158 端点 / 零漂移**。
+- **附**：本次 npm install 直接依赖集合与 rc.4 相同（598 个包），但 **349 个版本变化** —— `@deepseek-ai/*` 定向升级 +
+  `^` 范围内传递依赖自然漂移（如 `@aws-sdk/*` 补丁号 +1）；核心树条目 58,477→58,749、解包 492.9→496.8 MB。
+- **待办**：真机验收（含 web_search）；发布 v1.1.12。
+- 细节：`docs/140`。
 
 ## 0.11 2026-11-18（v1.1.11）：核心升级 `0.2.2-rc.3+whale.1` → `0.2.2-rc.4+whale.1`
 
