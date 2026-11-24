@@ -23,7 +23,12 @@
   内嵌容器 `dsh-core-0.2.3-alpha.2+whale.3` sha256 `d90141f6…` 一致；`module.json` versionCode 1010013 / versionName 1.1.13）。
 - **本机验证件**：`dist/signing/dev-profile/whale-verify-1.1.12-vc1010001.hap`（463,522,039 B，sha `83e97d79…`，已装机；
   vc 1010001 用于覆盖安装，**不是发布件**）。
-- **发布**：GitHub + AtomGit release `v1.1.13`，资产 `whale-unsigned.hap`（上传完成后把链接与平台侧 size/digest 核对结果补在此处）。
+- **发布（2026-11-24，已上传并核对）**：
+  - GitHub <https://github.com/fufay/whale/releases/tag/v1.1.13> —— 资产 id 786163755，461,082,299 B，
+    `digest: sha256 d48246ca…`（与本地逐位一致）；
+  - AtomGit <https://atomgit.com/Kevin911/whale/releases/tag/v1.1.13> —— 资产 id 358192，461,082,299 B，
+    `digest: sha256 d48246ca…`（与本地逐位一致）；
+  - 源码已推两端 `main`（`d82d1c7..0d2639c`）。
 - **回退**：`AppScope` 回 `1.1.12 / 1010012`、核心树回 `+whale.2`、`--host` 回 `127.0.0.1` 后重出包（详见 `docs/141` §六 / `docs/142` §十一）。
 
 ## 0.15 2026-11-24：启用官方「远程连接」（`+whale.2` → **`+whale.3`**）
