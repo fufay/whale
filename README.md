@@ -9,10 +9,10 @@
 </div>
 
 Whale 把 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（dsh）的**运行本体**装进一个 HarmonyOS PC 应用：
-HAP 内自带 Node 运行时与 dsh 核心树，核心在本机 `127.0.0.1` 上起 Host，应用内的 ArkWeb 页面加载官方 Web 前端 ——
+HAP 内自带 Node 运行时与 dsh 核心树，核心在本机起 Host（默认绑本机局域网地址，无局域网时回落到 `127.0.0.1`），应用内的 ArkWeb 页面加载官方 Web 前端 ——
 **装上即用**，不需要在电脑上常驻任何服务，数据只留在本机应用沙箱内。
 
-> 当前核心：**dsh `0.2.2-rc.5`**（口径以 `hostcore/core-recipe.json` 为准，当前 `0.2.2-rc.5+whale.1`）
+> 当前核心：**dsh `0.2.3-alpha.2`**（口径以 `hostcore/core-recipe.json` 为准，当前 `0.2.3-alpha.2+whale.3`）
 > · 主包名 `com.jwhsoft.whale`（显示名 **WhaleX**）· Node **v26.13.1 / jitless** · Host 绑本机局域网地址（无局域网时回环兜底）
 >
 > 旧包 `whale.jwh.chat`（显示名 Whale）**仅存档、不再更新**；设备上已装的那份保持原样可用。
@@ -28,6 +28,7 @@ HAP 内自带 Node 运行时与 dsh 核心树，核心在本机 `127.0.0.1` 上�
 
 - **自足运行**：Node 运行时（`libnode.so.147`，v26.13.1）+ dsh 核心树随 HAP 分发；Host 优先绑本机局域网地址（`--host` 指向 wlan/eth 的 IPv4，找不到时回退 `127.0.0.1`），并保留 `127.0.0.1` 回环桥给应用内 WebView 与诊断通道。
 - **官方 Web UI**：窗口/启动页/托盘是 ArkTS 原生壳，正文是官方 dsh Web 前端（ArkWeb / Chromium 144）。
+- **远程连接（官方功能）**：设置 → 远程连接。Host 绑到本机局域网地址后，同网段设备可用**一次性二维码**或**登录链接**直接登录，也可以走独立的**配对申请**通道（本机核对配对码后批准）；登录凭据与配对规则由官方 Host 实现，本机私有端点仅「本机自连」时匿名。
 - **Office 预览**：docx / pptx 在侧栏直接用**官方 PDF 渲染器**显示 —— 转换引擎是 HAP 内置的 Rust/Typst
   （[office2pdf](https://github.com/developer0hye/office2pdf)），经 CMake NAPI 外壳在 Host 进程内 `dlopen`；
   中文字体运行期从系统 `Noto Serif/Sans CJK` 复制，**不随包带字体**。详见
@@ -84,7 +85,7 @@ Windows 上最省事的是 **hokit**：
 ### 2.3 构建步骤
 
 ```sh
-# ① 环境：Node 24 与 hvigor 在 PATH 上
+# ① 构建工具链：Node 24（仅构建用；HAP 内运行时是 v26.13.1）与 hvigor 在 PATH 上
 #    Harmonybrew 例：export PATH=/storage/Users/currentUser/.harmonybrew/opt/node@24/bin:$PATH
 
 # ② 入口脚本（改过 hostcore/ 就要重跑）
