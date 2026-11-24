@@ -68,7 +68,7 @@ Remove-Item ...\.ohos       # ⛔ 禁止（签名私钥只此一份）
 |---|---|---|
 | 构建产物 | `entry/build/default/outputs/default/` | 会被 clean 覆盖，**不要当交付物留档** |
 | 交付/侧载包 | `dist/sideload/` | 不会被构建清掉；含 README + SHA256SUMS |
-| 文档 | `docs/` | 编号连续；**索引以 `docs/README.md` 为准**；当前最新为 `140` |
+| 文档 | `docs/` | 编号连续；**索引以 `docs/README.md` 为准**；当前最新为 `142` |
 | 交接状态 | `HANDOFF.md`（根目录） | 每次开工先读、收尾更新；只放 1–2 页当前状态 |
 | 决策记录 | `DECISIONS.md` | 只追加“决定/原因/备选”，不写流水账 |
 | 一次性排查脚本 | 用完即删 | 不留在 `tools/` |
@@ -170,7 +170,7 @@ sh tools/build-verify-hap.sh --wait-core 300 # 装完等你在设备上重启应
 | `hostruntime/` | Node 运行时承载 |
 | `hostcore/` | 核心树配方、自带插件、端侧 profile |
 | `tools/` | 构建、pack-core、门禁、推送 |
-| `docs/` | 文档索引 `docs/README.md`；最新 `140` |
+| `docs/` | 文档索引 `docs/README.md`；最新 `142` |
 | `hostkit/` | 可选 PC 侧搭桥（手机档远程 Host） |
 
 ## 维护

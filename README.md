@@ -13,7 +13,7 @@ HAP 内自带 Node 运行时与 dsh 核心树，核心在本机 `127.0.0.1` 上�
 **装上即用**，不需要在电脑上常驻任何服务，数据只留在本机应用沙箱内。
 
 > 当前核心：**dsh `0.2.2-rc.5`**（口径以 `hostcore/core-recipe.json` 为准，当前 `0.2.2-rc.5+whale.1`）
-> · 主包名 `com.jwhsoft.whale`（显示名 **WhaleX**）· Node **v24.21.0 / jitless** · Host 仅监听回环地址
+> · 主包名 `com.jwhsoft.whale`（显示名 **WhaleX**）· Node **v26.13.1 / jitless** · Host 绑本机局域网地址（无局域网时回环兜底）
 >
 > 旧包 `whale.jwh.chat`（显示名 Whale）**仅存档、不再更新**；设备上已装的那份保持原样可用。
 
@@ -21,12 +21,12 @@ HAP 内自带 Node 运行时与 dsh 核心树，核心在本机 `127.0.0.1` 上�
 
 | 平台 | 仓库 | 未签名 HAP |
 |---|---|---|
-| GitHub | <https://github.com/fufay/whale> | <https://github.com/fufay/whale/releases/download/v1.1.12/whale-unsigned.hap> |
-| AtomGit | <https://atomgit.com/Kevin911/whale> | <https://atomgit.com/Kevin911/whale/releases/download/v1.1.12/whale-unsigned.hap> |
+| GitHub | <https://github.com/fufay/whale> | <https://github.com/fufay/whale/releases/download/v1.1.13/whale-unsigned.hap> |
+| AtomGit | <https://atomgit.com/Kevin911/whale> | <https://atomgit.com/Kevin911/whale/releases/download/v1.1.13/whale-unsigned.hap> |
 
 ## 功能概览
 
-- **自足运行**：Node 运行时（`libnode.so.137`）+ dsh 核心树随 HAP 分发；Host 只监听 `127.0.0.1`。
+- **自足运行**：Node 运行时（`libnode.so.147`，v26.13.1）+ dsh 核心树随 HAP 分发；Host 优先绑本机局域网地址（`--host` 指向 wlan/eth 的 IPv4，找不到时回退 `127.0.0.1`），并保留 `127.0.0.1` 回环桥给应用内 WebView 与诊断通道。
 - **官方 Web UI**：窗口/启动页/托盘是 ArkTS 原生壳，正文是官方 dsh Web 前端（ArkWeb / Chromium 144）。
 - **Office 预览**：docx / pptx 在侧栏直接用**官方 PDF 渲染器**显示 —— 转换引擎是 HAP 内置的 Rust/Typst
   （[office2pdf](https://github.com/developer0hye/office2pdf)），经 CMake NAPI 外壳在 Host 进程内 `dlopen`；
@@ -74,7 +74,7 @@ Windows 上最省事的是 **hokit**：
 
 | 产物 | 放到 | 生成/获取方式 |
 |---|---|---|
-| `libnode.so.137`（约 116 MB） | `entry/libs/arm64-v8a/` | HarmonyOS 版 Node 运行时。可自编：`NODE_VER=v24.21.0 bash tools/node-runtime/build-node-ohos.sh`（需 WSL2/POSIX，约 30–90 分钟，方法见 [`docs/124`](docs/124-端侧Node升级到v24.21.0（Phase 0）.md)） |
+| `libnode.so.147`（约 128 MB，strip 后） | `entry/libs/arm64-v8a/` | HarmonyOS 版 Node 运行时（v26.13.1）。可自编：构建记录在工作区 `Common/node-ohos-build/docs/14-v26.13.1构建记录（Node26迁移）.md`；Whale 侧迁移步骤见 [`docs/141`](docs/141-端侧Node升级到v26.13.1（换运行时）.md) |
 | `libdshhost.so` | `entry/libs/arm64-v8a/` | **hvigor 的 CMake 自动编译**（`entry/src/main/cpp/CMakeLists.txt`），无需手动准备 |
 | Node C++ 头文件（约 5 MB） | `entry/src/main/cpp/node-headers/` | `node tools/node-runtime/sync-node-headers.py <node 源码 tar.xz 或解压目录>`（Node 源码，MIT） |
 | dsh 核心树 zip（约 104 MB） | `entry/src/main/resources/resfile/` | `node tools/pack-core.mjs --place-in-app` 生成（需 npm 镜像，见 2.3） |

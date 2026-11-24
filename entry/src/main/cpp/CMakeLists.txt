@@ -51,7 +51,7 @@ target_link_libraries(dshhost PUBLIC libace_napi.z.so)
 #    NAPI 符号由 libnode 提供，由 main.js 的 process.dlopen 加载。
 unset(O2P_LIBNODE CACHE)
 set(O2P_LIBNODE "")
-foreach(cand libnode.so.137 libnode.so.127 libnode.so)
+foreach(cand libnode.so.147 libnode.so.137 libnode.so.127 libnode.so)
   if(NOT O2P_LIBNODE AND EXISTS ${ENTRY_LIBS}/arm64-v8a/${cand})
     set(O2P_LIBNODE ${ENTRY_LIBS}/arm64-v8a/${cand})
   endif()
@@ -70,7 +70,7 @@ endif()
 # 独立编译时用 -lhilog_ndk.z，CMake 里要显式列出来，否则 --no-undefined 会直接报 undefined symbol。
 target_link_libraries(dshhost PUBLIC hilog_ndk.z)
 
-# libnode.so.127 是**预编译**产物（自建 Node，见 tools/node-runtime/）。
+# libnode.so.<modules> 是**预编译**产物（自建 Node，见 node-ohos-build 项目；26.x=.147 / 24.x=.137）。
 #
 # 【为什么**不**链接它，而是运行期 dlopen】见 dshhost.cc 构造函数里的说明：
 # 若写进 DT_NEEDED，动态加载器会先以**局部作用域**把它载入，之后原生模块（koffi/node-pty/sharp）
@@ -123,17 +123,17 @@ if(EXISTS ${KOFFI_DIR}/package/src/koffi/CMakeLists.txt)
     set(KOFFI_ASM ${KOFFI_SRC}/src/abi/arm64_asm.S)
   endif()
 
-  # 取该 ABI 下**实际存在**的 libnode（soname 随 Node 版本走：26.x=.137、24.x=.127）。
+  # 取该 ABI 下**实际存在**的 libnode（soname 随 Node 版本走：26.x=.147、24.x=.137）。
   # 不写死名字，换 Node 版本时不必改这里。
   set(DSHM_LIBNODE_ARCH_DIR ${ENTRY_LIBS}/${DSHM_LIBNODE_ABI})
   unset(DSHM_LIBNODE CACHE)
-  foreach(cand libnode.so.137 libnode.so.127 libnode.so)
+  foreach(cand libnode.so.147 libnode.so.137 libnode.so.127 libnode.so)
     if(NOT DSHM_LIBNODE AND EXISTS ${DSHM_LIBNODE_ARCH_DIR}/${cand})
       set(DSHM_LIBNODE ${DSHM_LIBNODE_ARCH_DIR}/${cand})
     endif()
   endforeach()
   if(NOT DSHM_LIBNODE)
-    set(DSHM_LIBNODE ${DSHM_LIBNODE_ARCH_DIR}/libnode.so.137)
+    set(DSHM_LIBNODE ${DSHM_LIBNODE_ARCH_DIR}/libnode.so.147)
   endif()
   message(STATUS "libnode（预编译，${DSHM_LIBNODE_ABI}）= ${DSHM_LIBNODE}")
 
@@ -208,13 +208,13 @@ else()
 endif()
 set(SYSTEM_LIBNODE_ARCH_DIR ${ENTRY_LIBS}/${SYSTEM_LIBNODE_ABI})
 unset(SYSTEM_LIBNODE CACHE)
-foreach(cand libnode.so.137 libnode.so.127 libnode.so)
+foreach(cand libnode.so.147 libnode.so.137 libnode.so.127 libnode.so)
   if(NOT SYSTEM_LIBNODE AND EXISTS ${SYSTEM_LIBNODE_ARCH_DIR}/${cand})
     set(SYSTEM_LIBNODE ${SYSTEM_LIBNODE_ARCH_DIR}/${cand})
   endif()
 endforeach()
 if(NOT SYSTEM_LIBNODE)
-  set(SYSTEM_LIBNODE ${SYSTEM_LIBNODE_ARCH_DIR}/libnode.so.137)
+  set(SYSTEM_LIBNODE ${SYSTEM_LIBNODE_ARCH_DIR}/libnode.so.147)
 endif()
 if(EXISTS ${SYSTEM_ADDON_SRC}/flock.c AND EXISTS ${SYSTEM_LIBNODE})
   add_library(system MODULE ${SYSTEM_ADDON_SRC}/flock.c)
@@ -228,14 +228,14 @@ if(EXISTS ${SYSTEM_ADDON_SRC}/flock.c AND EXISTS ${SYSTEM_LIBNODE})
 # hvigor 打进 HAP libs/<abi>/ ⇒ 端侧路径 <bundle>/libs/arm64/libpython_runner.so，
 # 由宿主 main.js 的 ensurePythonBridge 直接 `process.dlopen` 加载。
 #
-# 【链接口径】与 koffi/flock 相同：napi_* 必须经 DT_NEEDED libnode.so.137 进
+# 【链接口径】与 koffi/flock 相同：napi_* 必须经 DT_NEEDED libnode.so.147 进
 # 依赖闭包（E43：RTLD_GLOBAL 首载不进后加载模块的可见集）。dlopen/dlsym 在
 # musl 下由 libc 提供，显式列 dl 更稳（DSHM 同款）。libpython **不**链接——
 # 运行时从 el1 libs dlopen（跨 libc + 链接期不可见，见 python_runner.cpp 头注）。
 if(EXISTS ${NATIVE_ROOT}/python_runner.cpp)
   unset(PYRUN_LIBNODE CACHE)
   set(PYRUN_LIBNODE "")
-  foreach(cand libnode.so.137 libnode.so.127 libnode.so)
+  foreach(cand libnode.so.147 libnode.so.137 libnode.so.127 libnode.so)
     if(NOT PYRUN_LIBNODE AND EXISTS ${ENTRY_LIBS}/arm64-v8a/${cand})
       set(PYRUN_LIBNODE ${ENTRY_LIBS}/arm64-v8a/${cand})
     endif()

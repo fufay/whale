@@ -480,13 +480,16 @@ extern "C" __attribute__((constructor)) void RegisterDshHostModule() {
    * 用 `dladdr` 问出**本 .so 自己**的路径，同目录下的 libnode.so.XXX 就是同一个包里的那份，
    * 既不硬编码路径，也不受搜索路径影响。
    *
-   * 【候选文件名】本机实际的 Node 是 26.7.0（`libnode.so.137`，真机已跑通于 DSHM），
-   * 而早期基线是 24.x（`libnode.so.127`）。soname 随 NODE_MODULE_VERSION 走，
-   * 因此这里按候选顺序逐个 dlopen，命中即用，避免换 Node 版本时改代码。
+   * 【候选文件名】soname 随 NODE_MODULE_VERSION 走：
+   *   26.x → `libnode.so.147`（2026-11-24 起的当前资产，node-ohos-build v26.13.1）
+   *   24.x → `libnode.so.137`（上一代资产，Node 24.21.0，真机长期验证）
+   *   22.x → `libnode.so.127`（更早的基线）
+   * 按候选顺序逐个 dlopen，命中即用，换 Node 版本时只需把新名字加在前面。
    */
   static const char* kLibnodeCandidates[] = {
-      "libnode.so.137",  // Node 26.x（当前资产，真机已验证）
-      "libnode.so.127",  // Node 24.x（历史基线）
+      "libnode.so.147",  // Node 26.x（当前，v26.13.1）
+      "libnode.so.137",  // Node 24.x（上一代资产）
+      "libnode.so.127",  // Node 22.x（历史基线）
   };
   std::string libsDir;
   Dl_info selfInfo;

@@ -35,6 +35,7 @@
 
 | D-025 | 2026-11-12 | **语音功能搁置**：不接 Speech Kit 改造，保持现状（SenseVoice 优先 + Core Speech Kit 兜底，v1.1.8 已随包）；不再主动推进、不再评估 230 MB 模型/17.4 MB 原生库的体积收益；规划留存 `docs/136`，日后要启用按其 M0 能力探测起步 | 用户看过官方 dsh desktop：语音能力本质是"语音输入代替打字"，对 WhaleX 收益不大；而改造需先解决 Speech Kit 长语音 VAD 截断（实测 4–5 s），再删 SenseVoice 与原生库，投入/风险与收益不匹配。现状可用（SenseVoice 离线批处理 + 短期兜底）⇒ 先不动 | `docs/136`（状态=搁置）；`HANDOFF.md` §0.8 |
 
+| D-026 | 2026-11-24 | 启用官方**远程连接**：Host `--host` 改为**本机局域网 IPv4**（拿不到回退回环，预检失败也回退），并删掉 `dsh-client-remote-connection` 客户端的 `if(`dshDesktop`in globalThis)return;` 让「设置 → 远程连接」出现；同时把 6 个 HAP 端点从 `auth: anonymous` 收紧为 `selfOnlyAnonymous`（本机自连才匿名） | 用户明确选择「同步官方功能优先，本地只绑回环的策略让位」。上游口径：远程连接面板/二维码广播的是监听地址，绑回环必然 `unreachable-host`；面板本身在桌面载体下被跳过（我们的 ArkWeb 壳注入了 `dshDesktop`），不存在 UI 开关。收紧端点是因为 Host 一旦暴露到同网段，原匿名 `/dshm-python/exec` 等于对同网段开放 RCE（绕过配对审批）。放弃了"只改 UI 不暴露网络"等折中（做不到既让其它设备登录又不监听网络） | `hostcore/app/main.js`（BIND_HOST/预检/回环桥/selfOnlyAnonymous）；`tools/pack-core.mjs` ⑲；`tools/check-core-openharmony-patches.mjs`；`entry/src/main/ets/pages/Index.ets`；`hostcore/core-recipe.json` → `0.2.3-alpha.2+whale.3`；`docs/142` §十一；`HANDOFF.md` §0.15 |
 ## 追加格式
 
 ```text

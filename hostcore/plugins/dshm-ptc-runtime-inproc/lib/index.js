@@ -35,8 +35,9 @@
  *   `@deepseek-ai/dsh-timeout` 的 `clampTimeout()`（:43-46），`null` 语义照官方
  *   `resolve()`（:837）：`null` = 不要截止期，透传。
  * · 名字校验口径照抄官方 `lib/types/bindings.js` 的 `validateBindings()`（:12-38）：
- *   同一个 `IDENTIFIER` 正则、同三组缝导出的保留集合（`PORTABLE_RESERVED_WORDS` /
- *   `RESERVED_BINDING_GLOBALS` / `RESERVED_ERROR_MEMBERS` + `DUNDER_MEMBER`），
+ *   同一个 `IDENTIFIER` 正则、同三组保留集合（alpha.2 起缝导出名为 `RESERVED_BINDING_WORDS` /
+ *   `RESERVED_BINDING_GLOBALS` / `RESERVED_ERROR_MEMBERS`；`DUNDER_MEMBER` 自 alpha.2 起缝不再导出，
+ *   我们按 rc.5 语义在本地保留同一条正则），
  *   **错误措辞也同源**，只有包名前缀不同。
  * · 擦除协议照官方 `index.js:755-756,930`：`STRIP_PREFIX + program + STRIP_SUFFIX`
  *   包壳后整体擦除，再切掉壳得到函数体。擦除器是并行交付的纯 JS 模块
@@ -108,7 +109,7 @@ import { readFileSync, statSync } from "node:fs";
 import { dirname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import z from "@deepseek-ai/schemastery";
-import { DUNDER_MEMBER, PORTABLE_RESERVED_WORDS, PtcRuntime, RESERVED_BINDING_GLOBALS, RESERVED_ERROR_MEMBERS } from "@deepseek-ai/dsh-ptc-runtime";
+import { PtcRuntime, RESERVED_BINDING_GLOBALS, RESERVED_BINDING_WORDS, RESERVED_ERROR_MEMBERS } from "@deepseek-ai/dsh-ptc-runtime";
 import { MAX_TIMER_DELAY_MS, clampTimeout } from "@deepseek-ai/dsh-timeout";
 import { OutputLedger, jsonValueBytes, startProgram } from "./vm-run.js";
 
@@ -117,10 +118,36 @@ const MODULE_NAME = "dshm-ptc-runtime-inproc";
 /** 所有对外错误文本的前缀。官方用 `dsh-ptc-runtime-node: `，我们换成自己的包名。 */
 const MESSAGE_PREFIX = `${MODULE_NAME}: `;
 /**
- * 便携标识符：与官方 `dsh-ptc-runtime-node/lib/types/bindings.js:12` 逐字相同的正则
- * （`[A-Za-z_][A-Za-z0-9_]*`，不含 `$`）。
+ * 便携标识符：与官方 `dsh-ptc-runtime-node/lib/types/bindings.js` **alpha.2 版**
+ * （`/^[A-Za-z_$][A-Za-z0-9_$]*$/`，允许 `$`）逐字相同。rc.5 及以前不含 `$`。
  */
-const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
+
+/**
+ * Error 成员属性的 dunder 拒绝正则。
+ *
+ * 【alpha.2 起缝不再导出】rc.5 的 `@deepseek-ai/dsh-ptc-runtime` 导出 `DUNDER_MEMBER`，
+ * alpha.2 把它移除了（官方 node 实现改为**仅 scoped-repl 格式**拒绝含 `__$binding_` 的名字，
+ * 不对 dunder 成员做全局拒绝）。我们沿用 rc.5 的严格语义（拒绝 `__x__` 形态的成员名），
+ * 因此在这里本地保留同一条正则；语义与 rc.5 逐字一致，不依赖上游导出。
+ */
+const DUNDER_MEMBER = /^__.+__$/;
+
+/**
+ * rc.5 的 `PORTABLE_RESERVED_WORDS` 比 alpha.2 的 `RESERVED_BINDING_WORDS` 多出的部分。
+ *
+ * 【为什么要本地补】rc.5 的"便携保留字"集合 = ECMAScript 关键字/严格模式名 + 一批
+ * Python 侧会撞名的词（`lambda`/`def`/`None`…）；alpha.2 把这套拆开，缝只导出
+ * ECMAScript 子集（`RESERVED_BINDING_WORDS`，48 词）。我们**保持 rc.5 的对外行为**
+ * （门禁 `check-ptc-runtime-inproc` C13 的判据就是 `lambda` 必须照样被拒），
+ * 所以在本地把差集补回成同一个 `PORTABLE_RESERVED_WORDS` 集合。
+ */
+const PORTABLE_ONLY_WORDS = [
+	'False', 'None', 'True', '_', 'and', 'as', 'assert', 'async', 'def', 'del', 'elif', 'except',
+	'from', 'global', 'is', 'lambda', 'match', 'nonlocal', 'not', 'or', 'pass', 'raise', 'type',
+];
+/** 便携保留字（rc.5 语义）：ECMAScript 子集 ∪ Python 侧撞名子集。 */
+const PORTABLE_RESERVED_WORDS = new Set([...RESERVED_BINDING_WORDS, ...PORTABLE_ONLY_WORDS]);
 /** 擦除包壳前缀（官方 `index.js:755` 逐字相同，长度 35）。 */
 const STRIP_PREFIX = "async function __dsh_program__() {\n";
 /** 擦除包壳后缀（官方 `index.js:756` 逐字相同，长度 2）。 */

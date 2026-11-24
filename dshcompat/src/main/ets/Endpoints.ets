@@ -6,15 +6,15 @@
  *   node tools/gen-compat-endpoints.mjs
  * 漂移检测：node tools/compat-drift.mjs（对当前安装/checkout 的上游重新提取并比对）
  *
- * 采集对象：@deepseek-ai/dsh 0.2.2-rc.2 · 158 个 endpoint
+ * 采集对象：@deepseek-ai/dsh 0.2.3-alpha.2 · 166 个 endpoint
  */
 
 import { ArgsShape, DshCapability, DshEndpoint, UpstreamIdentity } from './CompatTypes';
 
 export const UPSTREAM_IDENTITY: UpstreamIdentity = {
-  corePackage: '0.2.2-rc.2',
-  capturedAt: '2026-11-12T11:15:19.743Z',
-  endpointCount: 158
+  corePackage: '0.2.3-alpha.2',
+  capturedAt: '2026-11-24T05:04:38.909Z',
+  endpointCount: 166
 };
 
 /** 全部 endpoint 调用契约（按 endpoint 名排序） */
@@ -164,6 +164,18 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     capabilities: []
   },
   {
+    id: '@deepseek-ai/dsh-api-remotes#actionCards/act',
+    ns: 'actionCards',
+    method: 'act',
+    shape: ArgsShape.NAMED,
+    params: ['agentId', 'cardId', 'verb', 'payload'],
+    stream: false,
+    cancellable: false,
+    source: '',
+    capability: '',
+    capabilities: []
+  },
+  {
     id: '@deepseek-ai/dsh-api-remotes#agentPresets/list',
     ns: 'agentPresets',
     method: 'list',
@@ -234,6 +246,42 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     source: '',
     capability: 'commands',
     capabilities: ['commands']
+  },
+  {
+    id: '@deepseek-ai/dsh-api-remotes#connectorAccounts/cancel',
+    ns: 'connectorAccounts',
+    method: 'cancel',
+    shape: ArgsShape.NAMED,
+    params: ['key', 'id'],
+    stream: false,
+    cancellable: false,
+    source: '',
+    capability: '',
+    capabilities: []
+  },
+  {
+    id: '@deepseek-ai/dsh-api-remotes#connectorAccounts/start',
+    ns: 'connectorAccounts',
+    method: 'start',
+    shape: ArgsShape.NAMED,
+    params: ['key', 'operation'],
+    stream: false,
+    cancellable: false,
+    source: '',
+    capability: '',
+    capabilities: []
+  },
+  {
+    id: '@deepseek-ai/dsh-api-remotes#connectorAccounts/watch',
+    ns: 'connectorAccounts',
+    method: 'watch',
+    shape: ArgsShape.NONE,
+    params: [],
+    stream: true,
+    cancellable: true,
+    source: '',
+    capability: '',
+    capabilities: []
   },
   {
     id: '@deepseek-ai/dsh-api-remotes#credentials/describe',
@@ -740,6 +788,18 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     capabilities: []
   },
   {
+    id: '@deepseek-ai/dsh-api-remotes#permissionPresets/set',
+    ns: 'permissionPresets',
+    method: 'set',
+    shape: ArgsShape.REQUEST,
+    params: ['request'],
+    stream: false,
+    cancellable: false,
+    source: '',
+    capability: '',
+    capabilities: []
+  },
+  {
     id: '@deepseek-ai/dsh-api-remotes#pluginInventory/list',
     ns: 'pluginInventory',
     method: 'list',
@@ -973,6 +1033,18 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     method: 'setIndexes',
     shape: ArgsShape.NAMED,
     params: ['urls'],
+    stream: false,
+    cancellable: false,
+    source: '',
+    capability: '',
+    capabilities: []
+  },
+  {
+    id: '@deepseek-ai/dsh-api-remotes#pluginRecommendations/describe',
+    ns: 'pluginRecommendations',
+    method: 'describe',
+    shape: ArgsShape.NAMED,
+    params: ['agentId', 'cardId'],
     stream: false,
     cancellable: false,
     source: '',
@@ -1455,6 +1527,30 @@ export const DSH_ENDPOINTS: DshEndpoint[] = [
     params: ['agentId', 'query'],
     stream: false,
     cancellable: true,
+    source: '',
+    capability: '',
+    capabilities: []
+  },
+  {
+    id: '@deepseek-ai/dsh-api-remotes#sessionStatus/follow',
+    ns: 'sessionStatus',
+    method: 'follow',
+    shape: ArgsShape.NONE,
+    params: [],
+    stream: true,
+    cancellable: true,
+    source: '',
+    capability: '',
+    capabilities: []
+  },
+  {
+    id: '@deepseek-ai/dsh-api-remotes#sessionStatus/mark',
+    ns: 'sessionStatus',
+    method: 'mark',
+    shape: ArgsShape.NAMED,
+    params: ['sessionId', 'action'],
+    stream: false,
+    cancellable: false,
     source: '',
     capability: '',
     capabilities: []

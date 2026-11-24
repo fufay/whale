@@ -123,8 +123,18 @@ export interface VersionCheck {
  *                   返回 `RenderedDocumentBytes`）⇒ 本仓 `dshm-office2pdf` 已改注册 `officeKit`，
  *                   profile 停用项改为 `office-kit`。
  *                 ⇒ 本次升级只需重生成上表 + 更新矩阵；调用代码仅 office 服务名一处（已改）。
+ *   0.2.3-alpha.2 —— 端侧当前基线（166 端点，2026-11-24 采集）。相对 0.2.2-rc.2（158）：**+8 / −0**，零形状/参数变化：
+ *                 · 新增 `actionCards/act`、`connectorAccounts/{cancel,start,watch}`、`permissionPresets/set`、
+ *                   `pluginRecommendations/describe`、`sessionStatus/{follow,mark}`；
+ *                 · 全部属 alpha.1 引入的**新功能面**（Action 卡片、连接器账号、权限预设、插件推荐、会话状态/已读未读），
+ *                   Whale 的 ArkTS 侧当前都**未接入**（无能力项、无 UI 入口）⇒ 只在基线里登记，不新增能力映射；
+ *                 · rc.3/rc.4/rc.5 三版契约**零漂移**，基线一直停在 rc.2，故本次是 rc.2 之后第一次上表变更。
+ *                 ⇒ 本次升级只需重生成上表 + 更新矩阵，**不动调用代码与能力映射**。
+ *                 证据：`node tools/gen-compat-endpoints.mjs`（166 端点 / 20 流式 / 15 能力）+
+ *                 `node tools/compat-drift.mjs` 实跑 **exit=0「无漂移」**（期望 166 / 基线 166）。
  */
 const SUPPORTED_VERSIONS: string[] = [
+  '0.2.3-alpha.2',
   '0.2.2-rc.2',
   '0.2.2-rc.1',
   '0.2.1-alpha.1',

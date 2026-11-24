@@ -3,11 +3,78 @@
 > **这是当前状态，不是规则。** 规则看 `AGENTS.md`；决策看 `DECISIONS.md`；细节看 `docs/README.md`。
 > 每次开工先读本文件，收尾必须更新本文件。目标 1–2 页，不写过程流水账。
 
-**最后更新**：2026-11-22
+**最后更新**：2026-11-24
 **仓库**：`Common/whale` · 分支 `main` · 本次 HEAD 以 `git log` 为准（历史已压缩为「自足单体提交 + 后续修复提交」，不再是 §2 记录的 10-24 那批短哈希）
 **工作树**：`git status` 为准；`hostcore/**` 有改动时须 `place-host-app` 同步（本轮未动 hostcore）
-**核心树口径**：以 `hostcore/core-recipe.json` 为准，当前读数 **`0.2.2-rc.5+whale.2`**（2026-11-22 换核 + web_search 重试补丁，见 §0.12）
+**核心树口径**：以 `hostcore/core-recipe.json` 为准，当前读数 **`0.2.3-alpha.2+whale.3`**（2026-11-24 启用官方「远程连接」：Host 绑局域网 + 恢复设置节，见 §0.15；上一版 `+whale.2` 见 §0.14）
+**运行时口径（2026-11-24 起）**：端侧 Node **v26.13.1**（`libnode.so.147`，modules=147 / V8 14.6），见 §0.13 与 `docs/141`
 **签名口径**：开发包默认用 365 天无 ACL 调试 Profile（`dist/signing/dev-profile/whale-dev-debug.p7b`，见 `docs/125` §八）
+
+## 0.16 2026-11-24：发布 **v1.1.13 / 1010013**（Node 26 + 0.2.3-alpha.2 + 远程连接）
+
+- **本版内容（一次发版覆盖三轮工作）**：
+  ① 端侧 Node 24.21.0 → **v26.13.1**（`libnode.so.147`，见 §0.13 / `docs/141`）；
+  ② dsh 核心 `0.2.2-rc.5+whale.2` → **`0.2.3-alpha.2+whale.3`**（含 alpha.2 换核、PTC 导出面、三方插件
+     `requestRejection` 兼容垫片、Office 端点 auth、ArkWeb 缓存，以及本版新增的**官方「远程连接」**：Host 绑局域网
+     IPv4 + `pack-core` 补丁 ⑲ 恢复设置节 + 6 个 HAP 端点按来源收紧，见 §0.14/§0.15 / `docs/142`）；
+  ③ 版本号：`AppScope/app.json5` → `1.1.13 / 1010013`。
+- **发布件**：`dist/release/whale-unsigned.hap` **461,082,299 B**，sha256
+  `d48246caa2b5f8a3ece80ce9d2a326e5758081d4bf35340fda567152a5e2a432`（124 条目全 STORED、无签名残留；
+  内嵌容器 `dsh-core-0.2.3-alpha.2+whale.3` sha256 `d90141f6…` 一致；`module.json` versionCode 1010013 / versionName 1.1.13）。
+- **本机验证件**：`dist/signing/dev-profile/whale-verify-1.1.12-vc1010001.hap`（463,522,039 B，sha `83e97d79…`，已装机；
+  vc 1010001 用于覆盖安装，**不是发布件**）。
+- **发布**：GitHub + AtomGit release `v1.1.13`，资产 `whale-unsigned.hap`（上传完成后把链接与平台侧 size/digest 核对结果补在此处）。
+- **回退**：`AppScope` 回 `1.1.12 / 1010012`、核心树回 `+whale.2`、`--host` 回 `127.0.0.1` 后重出包（详见 `docs/141` §六 / `docs/142` §十一）。
+
+## 0.15 2026-11-24：启用官方「远程连接」（`+whale.2` → **`+whale.3`**）
+
+- **用户决定**：同步官方功能优先——本地"只绑回环"的策略让位（明确了 Host 可暴露到同网段，靠官方配对审批兜底）。
+- **根因（两条叠加）**：① `dsh-client-remote-connection` 客户端 `apply()` 首行 `if(`dshDesktop`in globalThis)return;`，
+  而我们的 `WebApp.ets` `DESKTOP_CARRIER_JS` 为账号菜单注入了 `globalThis.dshDesktop={protocolVersion:1}` ⇒ 设置节永不注册；
+  ② Host 启动参数写死 `--host 127.0.0.1` ⇒ `deployment()` 判 `unreachable-host`。详见 `docs/142` §十一。
+- **改动**（`hostcore/app/main.js`）：`BIND_HOST`（局域网 IPv4 优先、回环兜底）+ `probeBindable()` 预检回退 +
+  `--trusted-host` 双声明 + `startLoopbackBridge()`（`127.0.0.1` → `BIND_HOST` 纯 TCP 桥，dsh 监听后起；供 ArkTS
+  就绪探测与旧回环接线） + **6 个 HAP 端点改为 `auth: selfOnlyAnonymous`**（本机自连才匿名，局域网来源回落 cookie 栅栏，
+  否则 `/dshm-python/exec` 等于对同网段开放 RCE）+ `runtimeFacts().listenAddress` 用实际绑定地址。
+- **核心树补丁**：`pack-core` 新增 ⑲ `patchRemoteConnectionDesktopGate()`（标记 `DSHM_REMOTE_CONNECTION_DESKTOP_GATE`），
+  门禁扩到 **177 条**（+4），`--self-test` **167/0**。另 `Index.ets` 不再把非回环监听判 warn。
+- **产物**：新容器 `dsh-core-0.2.3-alpha.2+whale.3-openharmony-arm64.zip` = **169,428,829 B / 64,959 条目**，
+  sha256 `d90141f695e260b54d22faf1a9f28971eac4a543b27aa1f4b1c5bd6a3c7c981b`；验证件
+  `whale-verify-1.1.12-vc1010001.hap`（vc 1010001 覆盖安装）已装机，等用户重启验收。
+- **验收口径**：设置 → 应出现「远程连接」；「访问地址」= `http://192.168.1.60:3122`（换 Wi-Fi/IP 后需重启应用重取）。
+  **两条"直接登录"通道不需要审批**：二维码（一次性凭据，用掉/过期即失效）与「复制登录链接」（内含启动 token，
+  重启服务失效）——拿到任一个的浏览器直接获得完整访问权限（2026-11-24 用户实测：手机扫码 / 另机打开带 token URL
+  都直接进入，本机无配对申请，属官方设计）。**配对申请是独立第三条通道**：另一台设备打开**裸地址**
+  （`http://IP:3122/`，无 token）→ 登录页「申请配对」→ 对方显示配对码等待，本机「设置 → 远程连接」出现
+  「配对申请」→ 核对配对码批准后自动登录。详见 `docs/142` §11.5。
+- **回退**：`--host` 改回 `127.0.0.1`（或撤掉 ⑲ 调用 + coreVersion 回 `+whale.2`）重出 HAP 覆盖装。
+
+## 0.14 2026-11-24：核心升级 `0.2.2-rc.5+whale.2` → **`0.2.3-alpha.2+whale.1`**
+
+- **前置**：端侧 Node 已升 v26.13.1（§0.13），本版 `engines ^24.22.3 || >=26.13.1` 正好满足。
+- **预检**（`dist/alpha2-precheck/report.md`）：`dsh` 依赖 91→93（+timeline/+cua-mcp/+session-persistence-sqlite，−personalized-recommendations）；dsh-base 组合行 +3/−1；dsh-web-app 组合行 +13/−2；24 个预检包中 18 个 `lib/*.js` 有实质变化 ⇒ 锚点是主要风险。
+- **动作**：`coreVersion` → `0.2.3-alpha.2+whale.1`；手动 npm install（697 包 / 2 分钟）→ `pack-core --skip-install --place-in-app`。**补丁锚点返工 1 处**：alpha.2 重写 `parseSubagentChatAddress` ⇒ armor ③ 在 `tools/pack-core.mjs` 新增"alpha.2 形态"分支（函数头整段重锚，armor 兜底 + 保留上游新逻辑）；其余 21 处注入全命中。
+- **产物**：core zip **169,427,856 B / 64,959 条目**，（压缩后 161.6 MB）sha256 `e7b347156cfec1b6…`；已 place-in-app（旧容器已清）。旧容器 `dsh-core-0.2.2-rc.5+whale.2`（sha `b715535c…`）仍在 `dist/core/`，可用于回退。
+- **契约**：**158 → 166（+8 / −0，零形状变化）**：`actionCards/act`、`connectorAccounts/{cancel,start,watch}`、`permissionPresets/set`、`pluginRecommendations/describe`、`sessionStatus/{follow,mark}`（alpha.1 新功能面，ArkTS 侧未接入 ⇒ 只登记基线、不加能力映射、不改调用代码）。`Endpoints.ets` 已重生成（166 端点 / 20 流式 / 15 能力）；`CompatIndex.ets` 矩阵加 `0.2.3-alpha.2`；`compat-drift` **exit 0（期望 166 / 基线 166）**。
+- **门禁**：补丁 **173/0**、self-test **163/0**；entrypoints/cli-shim/resfile-core-zip/resfile-sync/office2pdf/rg/exec/parity/ptc/native-closure/fetch-shim/arch/doc-refs/dead-code 全 exit 0。
+- **验证件**：`dist/signing/dev-profile/whale-verify-alpha2-vc1010001.hap` = **463,496,654 B** sha256 `ecc5f095…`；HAP 内 resfile 容器 sha256 与 dist/core 一致；**已 `hdc install -r` 覆盖装机**（vc 1010001 / vn 1.1.12）。
+- **真机冒烟发现 3 个问题（2026-11-24 13:20–14:00）**：① PTC 预设加载失败（已修，见下）；② 文件面板 HTTP 400 + ③ 插件市场 403「untrusted origin」——**同一根因**：DSH 0.2.3 删除了 `connection.requestRejection()`，而用户三方插件 `dsh-better-sidebar` / `dshmarket` / `dsh-whale-widget` 仍调用旧 API；已在 `hostcore/app/main.js` 加 `installPluginCompatShims(ctx)` 补回旧方法（不动用户插件），`assert-resfile-sync`/补丁门禁全绿，验证件 `whale-verify-alpha2-whale2b-vc1010001.hap`（463,496,651 B，sha `4273289a…`）**已重装**。
+- **① PTC 预设加载失败** —— alpha.2 改了 `@deepseek-ai/dsh-ptc-runtime` 导出（`PORTABLE_RESERVED_WORDS`→`RESERVED_BINDING_WORDS`、移除 `DUNDER_MEMBER`）⇒ 我们的同进程 PTC 插件 import 失败；已修（本地重建便携保留字集合，保持 rc.5 语义），coreVersion → **`0.2.3-alpha.2+whale.2`**，新容器 sha256 `3a49b1df…`，验证件 `whale-verify-alpha2-whale2-vc1010001.hap` sha `ad528e2d…`，**已重装**；② **文件面板 HTTP 400** —— 来自用户自装第三方插件 `dsh-better-sidebar`（`/sidebar/api/*` 等接口不在本仓/核心树），处置见 `docs/142` §七。
+- **④ Office 预览（doc/ppt）`conversion failed (HTTP 401)`**：alpha.2 给 `webServer.register` 增加逐路由 auth 默认 `required` ⇒ `dshm-office2pdf` 宿主插件的进程内 Node fetch 被挡 401；已把 main.js 里自注册的 **6 个 HAP 端点**标 `auth: anonymous`（自带 token/路径白名单，Host/Origin 栅栏仍生效），验证件 `whale-verify-alpha2-whale2d-vc1010001.hap`（463,504,848 B、sha `8f74d86c…`）已装机。
+- **下一步（用户执行）**：**重启 WhaleX** → 「关于/dsh 版本」应显示 `0.2.3-alpha.2+whale.2` → 复验 PTC / Office 预览（doc/ppt）。
+- **回退**：`coreVersion` 改回 `0.2.2-rc.5+whale.2` → 旧容器放回 resfile → 重出 HAP 覆盖装。
+
+## 0.13 2026-11-24：端侧 Node 24.21.0 → **v26.13.1**（`libnode.so.147`）
+
+- **动机**：DSH `0.2.3-alpha.1` 起 `engines.node = ^24.22.3 || >=26.13.1`；用户判断上游今后按 26 线走 ⇒ 直接迁 26，不再走 24.22.3。
+- **产物**（`Common/node-ohos-build`，D-006/D-007、docs/14）：v26.13.1 本机构建，2h07m、0 error；未 strip 158,927,552 B sha `3fb1638c…`，**strip+重签 128,133,348 B sha `4172f5bf…`**（进 HAP 用这份）；SONAME `libnode.so.147`、NEEDED 仅 libc、`--jitless` 冒烟通过。
+- **Whale 改动**：`entry/libs/arm64-v8a/libnode.so.137` → **`libnode.so.147`**（旧件备份 `dist/rollback/libnode.so.137.node24.21.0`）；`entry/src/main/cpp/CMakeLists.txt` 四处候选加 `.147`；`hostruntime/src/main/cpp/dshhost.cc` 候选 `{.147,.137,.127}`；`node-headers` 同步 26.13.1 并**重编 `libdshhost.so`**（清 `entry/build`+`entry/.cxx`）；重跑 `tools/collect-libvips.mjs`（104 处 NEEDED 改写，libpty/libsharp 闭包 → `.147`）。
+- **产物核验**：HAP 内只有 `libnode.so.147`（无 .137 残留）；koffi/office2pdf_ext/python_runner/system 的 `NEEDED` 均 `.147`；`check-native-closure` **PASS**；`check-resfile-core-zip` / `assert-resfile-sync` PASS（核心树未动）。
+- **验证件**：`dist/signing/dev-profile/whale-verify-1.1.12-vc1010001.hap` = 449,166,879 B，sha256 `f570a2e6…`；**已 `hdc install -r` 装机**（设备 vc 1010001 / vn 1.1.12）。
+- **真机验收（2026-11-24 12:58，用户执行）**：重启后 7 项冒烟**全部正常** —— 启动/版本页、普通对话、`web_search`、Office 预览、终端/bash、图片附件。设备 `node-output.log` 权威读数：`platform=openharmony arch=arm64`、`"node":"26.13.1"` ⇒ 端侧确实跑在 Node 26.13.1 上。
+- **下一步**：① 按 `AGENTS.md`「运行时实验转正门槛」做一次**系统重启**后再启动（仍未做）；② 决定是否提交本轮仓库改动；③ 之后可开始 DSH `0.2.3-alpha.2` 换核（engines 门槛已满足）。
+- **回退**：还原 `.137` + `git checkout` 两个源文件 + 用 24.21.0 头文件重同步 + 清 `entry/build` 重出 HAP（步骤见 `docs/141` §六）。
+- **新坑**：① `llvm-strip` 后必须 `ohos-selfsign sign`，否则加载器报假的 `_ZN4node5StartEiPPc symbol not found`；② 换 .so 必须清 `entry/build`/`entry/.cxx`，否则旧 `.137` 中间物会一并打进 HAP（571 MB）；③ 换 Node 版本后必须重跑 `collect-libvips` 改第三方闭包。
 
 ## 0.12 2026-11-22（v1.1.12）：核心升级 `0.2.2-rc.4+whale.1` → `0.2.2-rc.5+whale.1`
 

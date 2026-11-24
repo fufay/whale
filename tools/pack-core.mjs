@@ -3135,6 +3135,29 @@ function patchResourceAddressArmor() {
         + 'const searchParams=new URLSearchParams(query);'
         + 'const parentSessionId=searchParams.get(`parent`);const mode=searchParams.get(`mode`);',
     },
+    {
+      /*
+       * 【2026-11-24 alpha.2 形态】上游重写了 parseSubagentChatAddress：
+       * 旧形态「parts 校验后直接取 parent/mode」变成「先 decodeURIComponent(parts[1])，
+       * search 为空则直接返回 sessionId，再取 parent/mode 并校验 mode 白名单」。旧的压缩锚点
+       * 因此整段漂移（前缀还在、中段插入 + `url.search` 参与判断）。这里按**函数头整段**重锚：
+       * 捕获参数名后原样重放飞，保留上游新逻辑，只把 host/path/query 换成 armor 兜底值。
+       */
+      find: /function parseSubagentChatAddress\(([A-Za-z_$][\w$]*)\)\{let url;try\{url=new URL\(\1\)\}catch\(_invalidUrl\)\{return\}if\(url\.protocol!==`dsh-resource:`\|\|url\.hostname\.toLowerCase\(\)!==`subagentchat`\)return void 0;const parts=url\.pathname\.split\(`\/`\)\.filter\(Boolean\);if\(parts\.length!==2\|\|parts\[0\]!==`session`\)return void 0;let sessionId;try\{sessionId=decodeURIComponent\(parts\[1\]\)\}catch\(_invalidEncoding\)\{return\}if\(url\.search===``\)return sessionId;const parentSessionId=url\.searchParams\.get\(`parent`\);const mode=url\.searchParams\.get\(`mode`\);/,
+      build: (m) => {
+        const a = m[1];
+        return 'function parseSubagentChatAddress(' + a + '){let url;try{url=new URL(' + a + ')}catch(_invalidUrl){return}'
+          + '/* DSHM_RESOURCE_ARMOR_SUBAGENT：ArkWeb 下 hostname==="" 且 query 可能被并进 path */'
+          + 'const armor=url.hostname===``?/^[a-z][a-z\\d+.-]*:\\/\\/([^/?#]*)([^?#]*)(\\?[^#]*)?/iu.exec(' + a + '):null;'
+          + 'const host=armor===null?url.hostname:armor[1];const pathname=armor===null?url.pathname:armor[2];const query=armor===null?url.search:armor[3]===void 0?``:armor[3];'
+          + '/* DSHM_RESOURCE_ARMOR_SUBAGENT */'
+          + 'if(url.protocol!==`dsh-resource:`||host.toLowerCase()!==`subagentchat`)return void 0;'
+          + 'const parts=pathname.split(`/`).filter(Boolean);if(parts.length!==2||parts[0]!==`session`)return void 0;'
+          + 'let sessionId;try{sessionId=decodeURIComponent(parts[1])}catch(_invalidEncoding){return}'
+          + 'if(query===``)return sessionId;'
+          + 'const sp=new URLSearchParams(query);const parentSessionId=sp.get(`parent`);const mode=sp.get(`mode`);';
+      },
+    },
   ]);
 }
 /*
@@ -3231,6 +3254,42 @@ function patchSidebarTabIdLeak() {
   text = text.replace(before, after);
   writeFileSync(target, text, 'utf8');
   log('[pack-core]   侧栏页签守卫补丁：sidebarRight.tabs.register() 取号失败回滚');
+}
+
+function patchRemoteConnectionDesktopGate() {
+  const target = join(
+    STAGE, 'node_modules', '@deepseek-ai', 'dsh-client-remote-connection', 'lib', 'client.js',
+  );
+  if (!existsSync(target)) die(`远程连接面板补丁：找不到 ${target}`);
+  let text = readFileSync(target, 'utf8');
+  const MARK = 'DSHM_REMOTE_CONNECTION_DESKTOP_GATE';
+  if (text.includes(MARK)) {
+    log('[pack-core]   远程连接面板补丁已存在（跳过）');
+    return;
+  }
+  /*
+   * 上游在 `apply()` 开头判断桌面壳：
+   *   `await ctx.remote.$mount(TYPERT_REMOTE); if (`dshDesktop`in globalThis)return;`
+   * 原因是官方 Electron 桌面壳自带远程连接入口，Web 版设置节不该重复出现。
+   *
+   * 但我们的 ArkWeb 壳**也**注入了 `globalThis.dshDesktop={protocolVersion:1}`
+   * （`entry/src/main/ets/pages/WebApp.ets` 的 DESKTOP_CARRIER_JS：账号菜单/更新源/
+   * 浏览器页签这三个门要求它存在），而壳侧**没有**任何远程连接 UI ⇒ 该设置节被这行
+   * 静默吞掉，用户永远看不到「设置 → 远程连接」（真机验收：2026-11-24）。
+   *
+   * 补丁只删这一个提前退出，保留上游的桌面判断语义在**有壳 UI 时**仍可成立（未来若
+   * 壳里真的接上远程连接面板，把本补丁连同该能力一起撤掉即可）。
+   */
+  const before = 'if(`dshDesktop`in globalThis)return;';
+  if (!text.includes(before)) {
+    die('远程连接面板补丁：找不到 `if(`dshDesktop`in globalThis)return;` 锚点（上游结构变化？），拒绝静默跳过');
+  }
+  const after = '/* ' + MARK
+    + '：官方 Electron 壳自带远程连接入口，所以 Web 版在这里提前退出；'
+    + 'Whale 的 ArkWeb 壳只注入 {protocolVersion:1}（为账号菜单等门放行）却没有那份 UI '
+    + '⇒ 保留 Web 版设置节，「设置 → 远程连接」才会出现。 */';
+  writeFileSync(target, text.replace(before, after), 'utf8');
+  log('[pack-core]   远程连接面板补丁：删除 dshDesktop 提前退出（恢复「设置 → 远程连接」）');
 }
 
 function patchPdfMapCompat() {
@@ -3663,6 +3722,7 @@ patchAttachmentLocalCause();
  */
 patchResourceAddressArmor();
 patchWebSearchRetry();
+patchRemoteConnectionDesktopGate();
 patchPdfMapCompat();
 patchSubprocessOpenharmony();
 patchSidebarTabIdLeak();

@@ -1048,6 +1048,162 @@ const SANDBOX_HOME = process.env.DSHM_SANDBOX_HOME || USER_DATA || HOME_DIR;
 const PORT = process.env.DSHM_PORT || '3120';
 const PROFILE = process.env.DSHM_PROFILE || 'ondevice';
 
+/*
+ * ── 远程连接（官方「设置 → 远程连接」）的端侧前置条件 ─────────────────────────
+ *
+ * 【上游口径】`dsh web` 的 `--host` 只接受「本机某个具体接口地址」，**明确拒绝**
+ * `0.0.0.0` 通配（`dsh-web-app/lib/startup.js` 的 `--host` 帮助与 `isWildcardHost`
+ * 检查原文：绑定所有接口等于把 RCE 暴露给网络）。而 Host 广播给远程连接面板/二维码的
+ * 地址就是监听地址（`webServer.getOrigin()`）⇒ **绑回环时远程连接必然不可用**：
+ * `dsh-client-remote-connection/lib/index.js` 的 `deployment()` 对 `localhost`/`::1`/
+ * `127.*` 一律返回 `availability:"unreachable-host"`，面板只会显示
+ * “当前地址无法用于跨设备登录”。
+ *
+ * 【端侧决定】优先绑定**本机局域网 IPv4**（wlan/eth/en 优先，其次其它非内部网卡）；
+ * 一个都拿不到（纯离线、网卡未起）就退回 127.0.0.1——此时应用照常可用，只是远程连接
+ * 不可用，绝不因为"没有局域网"就让 Host 起不来。
+ *
+ * 【配套两件事，缺一不可】
+ *   ① `--trusted-host` 声明回环 + 本机地址。`/api` 浏览器栅栏按「回环 / 监听地址 /
+ *      trusted-host」三者判可信（`dsh-web-app/cordis.patch.yml` 的 `connection` 行注释
+ *      原文：“Every API request and upgrade passes the loopback, listener-bind, or
+ *      trustedHosts policy”）；监听地址本身已可信，显式声明是为了日志能自证。
+ *   ② 起一条**只监听回环**的 TCP 桥 `127.0.0.1:PORT → <本机地址>:PORT`：ArkTS 侧的
+ *      就绪探测（`NodeRuntime.portAnswers` 写死 127.0.0.1）与既有回环接线继续可用。
+ *      桥只绑回环 ⇒ 局域网连不进来，不会把"本机自连"判据变成外部入口。
+ */
+const osNet = require('node:os');
+const net = require('node:net');
+
+/** 本机所有非内部 IPv4（wlan/eth/en 优先，排除 169.254/16），拿不到返回空数组。 */
+function localIPv4Addresses() {
+  const rows = [];
+  try {
+    const ifaces = osNet.networkInterfaces();
+    const rank = (name) => (/^(wlan|eth|en)/.test(name) ? 0 : /^(chba|rmnet|usb|bt)/.test(name) ? 2 : 1);
+    const names = Object.keys(ifaces).sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+    for (const name of names) {
+      for (const row of ifaces[name] || []) {
+        if (!row || row.family !== 'IPv4' || row.internal === true || !net.isIPv4(row.address)) continue;
+        rows.push(row.address);
+      }
+    }
+  } catch (e) {
+    log('读网卡列表失败（按只有回环处理）：' + (e && e.message ? e.message : e));
+  }
+  const routable = rows.filter((address) => !address.startsWith('169.254.'));
+  return routable.length > 0 ? routable : rows;
+}
+
+/** 本次 Host 的绑定地址：有局域网就绑它，否则回环。启动时算一次（运行期换 IP 要重启才生效）。 */
+const LOCAL_IPV4 = localIPv4Addresses();
+const BIND_HOST = LOCAL_IPV4.length > 0 ? LOCAL_IPV4[0] : '127.0.0.1';
+/** 实际绑定地址（start() 预检失败会回退成回环；host-ready 的 listenAddress 读它）。 */
+let ACTIVE_BIND_HOST = BIND_HOST;
+
+/**
+ * 本机自身地址集合（回环 + 本机所有非内部 IPv4）。
+ *
+ * 【用途】HAP 端点（`/dshm-python/*` 等）在 alpha.2 的 `auth='required'` 下会 401，
+ * 它们由**本机自连**调用（WebView 进程内 fetch、回环桥、宿主侧 fetch），所以保留匿名；
+ * 但远程连接一开，Host 就暴露在局域网上，若不区分来源，任何局域网设备都能直接调
+ * `/dshm-python/exec`（等于绕过配对审批执行任意代码）。故这些端点改为
+ * `auth: selfOnlyAnonymous`：**来源地址是本机（回环或本机网卡地址）才匿名，其余回落到
+ * required**（走 dsh 的浏览器 cookie 栅栏，即必须先完成配对/登录）。
+ *
+ * 网卡地址在启动时快照一次：Host 已经绑死在其中一个地址上，运行期换 IP 必然要重启
+ * 才能生效，所以快照不会漏判"本机自连"。
+ */
+const SELF_ADDRESSES = new Set(['127.0.0.1', '::1']);
+for (const address of LOCAL_IPV4) SELF_ADDRESSES.add(address);
+
+/** 来源地址是否属于本机（回环或本机网卡地址；兼容 IPv4-mapped 写法）。 */
+function isSelfAddress(raw) {
+  if (typeof raw !== 'string' || raw.length === 0) return false;
+  const address = raw.startsWith('::ffff:') ? raw.slice(7) : raw;
+  if (address === '127.0.0.1' || address === '::1') return true;
+  return SELF_ADDRESSES.has(address);
+}
+
+/**
+ * HAP 端点的 auth 策略函数：本机自连 ⇒ anonymous；其它来源 ⇒ required。
+ * 返回值就是 webServer 的 policy 字符串（`authPolicy()` 对函数会先求值再判）。
+ */
+function selfOnlyAnonymous(request) {
+  try {
+    const socket = request && request.socket;
+    return isSelfAddress(socket && socket.remoteAddress) ? 'anonymous' : 'required';
+  } catch (e) {
+    return 'required';
+  }
+}
+
+/**
+ * 回环桥：`127.0.0.1:<port>` → `<bindHost>:<port>`，纯 TCP 双向管道（HTTP/SSE/WebSocket 都通）。
+ *
+ * 只在 `bindHost` 不是回环时启动，且**必须在 dsh 已监听之后**调用：ArkTS 的就绪判据是
+ * “127.0.0.1 能连上”，桥提前监听会让它误判就绪（随后读到不存在的 host-ready.json ⇒ 401）。
+ * 监听失败只记日志：桥是兼容通道，不许影响已验证的 web 服务链路。
+ */
+/**
+ * 预检：`host:port` 能不能真的 bind。
+ *
+ * 【为什么需要】绑定局域网地址是**平台/网卡状态相关**的动作（网卡刚起、被 VPN 改了、
+ * 平台限制）——若 Host 直接拿这个地址起监听而失败，端侧表现为"核心起不来/白屏"，
+ * 用户手上没有终端可以救。这里先用一个临时监听验证一次，失败就退回回环，
+ * 让应用至少可用（远程连接降级为不可用，日志里写明原因）。
+ *
+ * @returns {Promise<boolean>} 真能绑上（用完立即释放）
+ */
+function probeBindable(host, port) {
+  return new Promise((resolve) => {
+    let server;
+    try {
+      server = net.createServer();
+    } catch (e) {
+      resolve(false);
+      return;
+    }
+    server.once('error', () => resolve(false));
+    server.listen(Number(port), host, () => {
+      server.close(() => resolve(true));
+    });
+  });
+}
+
+function startLoopbackBridge(port, bindHost) {
+  if (bindHost === '127.0.0.1') return null;
+  try {
+    const server = net.createServer((client) => {
+      const upstream = net.connect({ host: bindHost, port: port });
+      const teardown = () => {
+        client.destroy();
+        upstream.destroy();
+      };
+      client.on('error', teardown);
+      upstream.on('error', teardown);
+      client.on('close', () => upstream.destroy());
+      upstream.on('close', () => client.destroy());
+      upstream.on('connect', () => {
+        client.pipe(upstream);
+        upstream.pipe(client);
+      });
+    });
+    server.on('error', (e) => {
+      log('回环桥监听失败（ArkTS 就绪探测与旧回环接线将不可用）：' + (e && e.message ? e.message : e));
+    });
+    server.listen(port, '127.0.0.1', () => {
+      log(`回环桥就绪：127.0.0.1:${port} → ${bindHost}:${port}（仅回环可见）`);
+    });
+    // 不靠这条监听把进程撑住：Host 自己的 webServer 才是事件循环的宿主。
+    server.unref();
+    return server;
+  } catch (e) {
+    log('回环桥异常（不阻塞）：' + (e && e.message ? e.message : e));
+    return null;
+  }
+}
+
 function log(msg) {
   // 统一前缀，便于 ArkTS / 诊断页从日志里认出我们的行
   console.log('[dshm-host] ' + msg);
@@ -1193,7 +1349,7 @@ function runtimeFacts() {
     platform: `${process.platform}/${process.arch}`,
     jitless: process.execArgv.includes('--jitless'),
     zstd: false,
-    listenAddress: `127.0.0.1:${PORT}`,
+    listenAddress: `${ACTIVE_BIND_HOST}:${PORT}`,
     natives: [],
     // 【D-009 / 2026-10-27】ACL 探针读数（ArkTS 侧写、Host 原样带回；null=未探测）
     aclJitExecMem: null,
@@ -3565,6 +3721,7 @@ function registerOffice2pdfEndpoint(ctx) {
     }
     ctx.webServer.register({
       kind: 'exact',
+      auth: selfOnlyAnonymous, /* DSHM: alpha.2 的默认 auth='required' 会拒掉无 cookie 的本机自连（WebView 进程内 fetch、回环桥）；远程连接开启后 Host 暴露在局域网，故按来源收紧：本机自连 anonymous、其余 required（走浏览器 cookie 栅栏）。详见 selfOnlyAnonymous 头注 */
       path: '/dshm-office2pdf/convert',
       handler: async (request, response) => {
         const sendJson = (code, obj) => {
@@ -3649,6 +3806,7 @@ function registerPythonHttpBridge(ctx) {
     }
     ctx.webServer.register({
       kind: 'exact',
+      auth: selfOnlyAnonymous, /* DSHM: alpha.2 的默认 auth='required' 会拒掉无 cookie 的本机自连（WebView 进程内 fetch、回环桥）；远程连接开启后 Host 暴露在局域网，故按来源收紧：本机自连 anonymous、其余 required（走浏览器 cookie 栅栏）。详见 selfOnlyAnonymous 头注 */
       path: '/dshm-python/status',
       handler: async (request, response) => {
         try {
@@ -3674,6 +3832,7 @@ function registerPythonHttpBridge(ctx) {
     });
     ctx.webServer.register({
       kind: 'exact',
+      auth: selfOnlyAnonymous, /* DSHM: alpha.2 的默认 auth='required' 会拒掉无 cookie 的本机自连（WebView 进程内 fetch、回环桥）；远程连接开启后 Host 暴露在局域网，故按来源收紧：本机自连 anonymous、其余 required（走浏览器 cookie 栅栏）。详见 selfOnlyAnonymous 头注 */
       path: '/dshm-python/run-get',
       handler: async (request, response) => {
         if (request.method !== 'GET') {
@@ -3700,6 +3859,7 @@ function registerPythonHttpBridge(ctx) {
     });
     ctx.webServer.register({
       kind: 'exact',
+      auth: selfOnlyAnonymous, /* DSHM: alpha.2 的默认 auth='required' 会拒掉无 cookie 的本机自连（WebView 进程内 fetch、回环桥）；远程连接开启后 Host 暴露在局域网，故按来源收紧：本机自连 anonymous、其余 required（走浏览器 cookie 栅栏）。详见 selfOnlyAnonymous 头注 */
       path: '/dshm-python/exec',
       handler: async (request, response) => {
         if (request.method !== 'GET') {
@@ -3833,6 +3993,7 @@ function registerRegistryViewEndpoint(ctx) {
     }
     ctx.webServer.register({
       kind: 'exact',
+      auth: selfOnlyAnonymous, /* DSHM: alpha.2 的默认 auth='required' 会拒掉无 cookie 的本机自连（WebView 进程内 fetch、回环桥）；远程连接开启后 Host 暴露在局域网，故按来源收紧：本机自连 anonymous、其余 required（走浏览器 cookie 栅栏）。详见 selfOnlyAnonymous 头注 */
       path: '/dshm-registry/view',
       handler: async (request, response) => {
         const sendJson = (status, body) => {
@@ -3956,6 +4117,7 @@ function registerPackageListViewEndpoint(ctx) {
     }
     ctx.webServer.register({
       kind: 'exact',
+      auth: selfOnlyAnonymous, /* DSHM: alpha.2 的默认 auth='required' 会拒掉无 cookie 的本机自连（WebView 进程内 fetch、回环桥）；远程连接开启后 Host 暴露在局域网，故按来源收紧：本机自连 anonymous、其余 required（走浏览器 cookie 栅栏）。详见 selfOnlyAnonymous 头注 */
       path: '/dshm-packages/list',
       handler: async (request, response) => {
         const sendJson = (status, body) => {
@@ -5313,14 +5475,28 @@ async function start() {
   // --host / --no-open / --port / --trusted-host <authority...>），必须走这里交给
   // `ctx.cmdlineArgs`。**绝不能**放进 buildHostArgv——那是 Node 自身 argv，
   // 实测把 `--trusted-host` 放那儿会得到 `node: bad option` 且 Host 完全起不来（D6 E68）。
-  // 端侧是"本机同源、浏览器等价"的场景，所以显式声明回环 authority 为可信来源。
+  //
+  // 【绑定地址：局域网优先，回环兜底】远程连接面板/二维码广播的是监听地址，绑回环时
+  // `deployment()` 判定 unreachable-host（见文件头部【远程连接】注释）。这里取本机
+  // 局域网 IPv4；拿不到才回退回环。回环始终进 trusted-host：应用内 WebView 与回环桥
+  // 都走这条 authority。
+  let bindHost = BIND_HOST;
+  if (bindHost !== '127.0.0.1' && !(await probeBindable(bindHost, PORT))) {
+    log(`局域网地址 ${bindHost}:${PORT} 预检不可绑（网卡状态/平台限制）⇒ 回退回环，远程连接本次不可用`);
+    bindHost = '127.0.0.1';
+  }
+  ACTIVE_BIND_HOST = bindHost;
   const args = [
     '--port', PORT,
-    '--host', '127.0.0.1',
+    '--host', bindHost,
     '--no-open',
     '--trusted-host', `127.0.0.1:${PORT}`,
+    `--trusted-host`, `${bindHost}:${PORT}`,
   ];
-  log('runProfile profile=' + PROFILE + ' args=' + args.join(' '));
+  log('runProfile profile=' + PROFILE + ' args=' + args.join(' ')
+    + (bindHost === '127.0.0.1'
+      ? '（未找到局域网地址：远程连接不可用，Host 仅绑回环）'
+      : `（Host 绑局域网 ${bindHost}:${PORT}：同网段设备可扫码登录，需配对审批）`));
   stage('BOOT_40_PROFILE_BOOT', `entry=${path.basename(entry)}`);
 
   // 抓 dsh 的 authenticatedUrl（含 token）：客户端唯一的凭据来源，落在 host-ready.json。
@@ -5331,6 +5507,7 @@ async function start() {
   // 预热运行时事实：把三个原生 require 挪到写 host-ready.json **之前**，
   // 这样拦截 stdout 写的那条路径上只读缓存（那里不适合做重活）。
   runtimeFacts();
+  await installConnectionRequestRejectionCompat();
   const result = await profileBoot.runProfile({
     environment: appBootMod.loadLayeredEnv('dsh'),
     profile: PROFILE,
@@ -5343,7 +5520,153 @@ async function start() {
   if (!ctx || !ctx.webServer) {
     fail('runProfile 返回了但没有 webServer');
   }
+/**
+ * 三方插件兼容垫片（**mount 之前**的原型补丁）：把 DSH 0.2.3 删除的
+ * `HostConnectionService.prototype.requestRejection` 补回。
+ *
+ * 【为什么必须在 runProfile 之前】`dshmarket` 的 host gate 在 mount 时就把
+ * `connection.requestRejection` **捕获**进闭包（`setRequestGateSource`），之后再往实例上加方法，
+ * 它那一份闭包里已经是 undefined，只能走 `admit()` fallback（在 alpha.2 上给出 403）。
+ * 因此必须在插件树挂载**之前**给类原型补方法 —— 这样所有插件在 mount 时都能拿到函数。
+ *
+ * 【为什么两棵树都补】宿主可能从 `CORE_DIR/node_modules` 解析这个包，也可能从
+ * `$DSH_HOME/profiles/<profile>/node_modules` 解析（profile 自带依赖树）。两处都 import 一次并打原型；
+ * ESM 模块缓存保证"我们打的类"与"profile-boot 之后加载的类"是同一个。
+ */
+async function installConnectionRequestRejectionCompat() {
+  const compat = function requestRejection(request) {
+    try {
+      const admission = this.admit(request);
+      return admission && typeof admission.rejection === "number" ? admission.rejection : void 0;
+    } catch (e) {
+      diag('插件兼容垫片（原型）：requestRejection 内部异常（按放行处理）：' + String(e && e.message ? e.message : e));
+      return void 0;
+    }
+  };
+  const candidates = [
+    CORE_DIR.length > 0
+      ? path.join(CORE_DIR, 'node_modules', '@deepseek-ai', 'dsh-client-connection', 'lib', 'index.js')
+      : '',
+    HOME_DIR.length > 0
+      ? path.join(HOME_DIR, 'profiles', PROFILE, 'node_modules', '@deepseek-ai', 'dsh-client-connection', 'lib', 'index.js')
+      : '',
+  ].filter((p) => p.length > 0);
+  for (const file of candidates) {
+    if (!fs.existsSync(file)) {
+      diag('插件兼容垫片（原型）：缺 ' + file);
+      continue;
+    }
+    try {
+      const mod = await import(pathToFileURL(file).href);
+      const Klass = mod.HostConnectionService;
+      if (typeof Klass !== 'function') {
+        diag('插件兼容垫片（原型）：' + file + ' 未导出 HostConnectionService');
+        continue;
+      }
+      if (typeof Klass.prototype.requestRejection === 'function') {
+        diag('插件兼容垫片（原型）：已存在，无需补（' + file + '）');
+        continue;
+      }
+      Object.defineProperty(Klass.prototype, 'requestRejection', {
+        configurable: true, writable: true, enumerable: false, value: compat,
+      });
+      diag('插件兼容垫片（原型）：补回成功（' + file + '）');
+    } catch (e) {
+      diag('插件兼容垫片（原型）：失败（' + file + '）：' + String(e && e.message ? e.message : e));
+    }
+  }
+}
+
+/**
+ * 三方插件兼容垫片：把 DSH 0.2.3 删除的 `connection.requestRejection()` 补回来。
+ *
+ * 【为什么需要】alpha.2（0.2.3 线）把 `connection.requestRejection(request)` 删掉、
+ * 换成 `admit(request) → { peer } | { rejection }`；而端侧用户装的三个插件仍按旧 API 调用：
+ *   · `dsh-better-sidebar`：`const fence = req => ctx.connection.requestRejection(req) === undefined`
+ *     ⇒ 调用即 TypeError ⇒ 宿主 webserver 兜底回 **400 空体**（真机表现：文件面板「HTTP 400」，
+ *       `/sidebar/api/*` 全部方法、连 GET 也 400，0–1ms）；
+ *   · `dshmarket`：host gate 优先用 `requestRejection`，缺失时走 `admit` fallback，行为不一致
+ *     ⇒ `/dsh-market/*` 全部 **403 "untrusted origin"**；
+ *   · `dsh-whale-widget`：同类调用点 4 处。
+ * 我们**不改用户插件**（会被插件更新覆盖），在这一层按 rc.5 的原始语义补回一行等价方法：
+ *   rc.5 的实现就是 `const a = this.admit(request); return "rejection" in a ? a.rejection : undefined;`
+ * alpha.2 的 `admit(request)` 接受含 `headers`/`socket` 的请求对象，认证 provider 只读 `headers`，
+ * 所以直接传 node request 即可。
+ *
+ * 【只补缺失】若上游以后把方法加回（或换了名字），这里自动跳过，不覆盖上游实现。
+ */
+function installPluginCompatShims(ctx) {
+  let conn;
+  try {
+    conn = ctx.get('connection');
+  } catch {
+    conn = undefined;
+  }
+  if (!conn) {
+    diag('插件兼容垫片：取不到 connection 服务，跳过');
+    return;
+  }
+  if (typeof conn.requestRejection === 'function') {
+    diag('插件兼容垫片：connection.requestRejection 已存在（无需补）');
+    return;
+  }
+  if (typeof conn.admit !== 'function') {
+    diag('插件兼容垫片：connection.admit 不存在，跳过（上游形态变了？）');
+    return;
+  }
+  /*
+   * 旧语义（rc.5）：`requestRejection(request)` = admit 后的 rejection（undefined = 放行）。
+   * 注意两点实现细节（2026-11-24 第二次真机迭代的教训）：
+   *   ① cordis 服务实例可能是**冻结对象**，`conn.requestRejection = fn` 在非严格模式下
+   *      **静默失败**（第一次版本就是这样：diag 打了"已补回"，真机却一点变化都没有）；
+   *      ⇒ 用 `Object.defineProperty`，失败再退到**原型**上定义（插件按属性查找照样命中）。
+   *   ② 我们的垫片自身不能抛：旧方法不允许抛异常；异常会让宿主 webserver 兜底成 400 空体。
+   *      内部异常只记日志并放行 —— 这些路由的 Host/Origin + 登录由宿主 webServer 自己的
+   *      authorize 把关（exact/prefix 路由默认 policy=required），不依赖这个垫片。
+   * 安装后必须**回读** `typeof conn.requestRejection`，否则"装了但没生效"无法从日志发现。
+   */
+  const compat = function requestRejection(request) {
+    try {
+      const admission = this.admit(request);
+      return admission && typeof admission.rejection === 'number' ? admission.rejection : void 0;
+    } catch (e) {
+      diag('插件兼容垫片：requestRejection 内部异常（按放行处理）：' + String(e && e.message ? e.message : e));
+      return void 0;
+    }
+  };
+  let how = 'none';
+  try {
+    Object.defineProperty(conn, 'requestRejection', {
+      configurable: true, writable: true, enumerable: false, value: compat,
+    });
+    if (typeof conn.requestRejection === 'function') how = 'instance';
+  } catch (e) {
+    diag('插件兼容垫片：实例上定义失败（' + String(e && e.message ? e.message : e) + '），改试原型');
+  }
+  if (how === 'none') {
+    const proto = Object.getPrototypeOf(conn);
+    if (proto) {
+      try {
+        Object.defineProperty(proto, 'requestRejection', {
+          configurable: true, writable: true, enumerable: false, value: compat,
+        });
+        if (typeof conn.requestRejection === 'function') how = 'prototype';
+      } catch (e) {
+        diag('插件兼容垫片：原型上定义也失败：' + String(e && e.message ? e.message : e));
+      }
+    }
+  }
+  diag('插件兼容垫片：requestRejection 安装结果=' + how + '（回读 typeof=' + typeof conn.requestRejection
+    + '）；alpha.2 删除该方法，dsh-better-sidebar / dsh-whale-widget / dshmarket 依赖旧 API');
+}
+
   stage('BOOT_60_HTTP_BIND', `port=${ctx.webServer.port}`);
+  /*
+   * 回环桥在 **dsh 已监听之后**才起（见 startLoopbackBridge 头注：提前监听会让 ArkTS
+   * 的就绪探测误判）。Host 绑局域网时 ArkTS 的 127.0.0.1 探测与旧回环接线靠它。
+   */
+  startLoopbackBridge(ctx.webServer.port, bindHost);
+  installPluginCompatShims(ctx);
   // python 桥 HTTP 端点（/dshm-python/*）：垫片与诊断工具的进程内执行通道。
   // 注册失败只 diag（桥是增量能力，不许影响已验证的 web 服务链路）。
   registerPythonHttpBridge(ctx);

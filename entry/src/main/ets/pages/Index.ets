@@ -3466,10 +3466,10 @@ struct Index {
           probe.jitless ? '' : '本项目要求 jitless：不申请特殊权限以保证顺利上架（D6 §4.4）'),
       this.nativeFact(probe),
       probe.listenAddress.length > 0
-        ? fact('监听地址', probe.listenAddress,
-          probe.listenAddress.startsWith('127.0.0.1') ? 'ok' : 'warn',
-          probe.listenAddress.startsWith('127.0.0.1') ? '' : '端侧核心只应监听回环地址')
-        : unknownFact('监听地址', '核心起来后应只监听 127.0.0.1'),
+        ? fact('监听地址', probe.listenAddress, 'ok',
+          'Host 绑本机局域网地址时，同网段设备可经「设置 → 远程连接」扫码登录（需本机配对审批）；'
+          + '找不到局域网地址时自动回退 127.0.0.1（远程连接不可用）')
+        : unknownFact('监听地址', '核心起来后应监听本机局域网地址（无局域网时回退 127.0.0.1）'),
       fact('核心仓库',
         status.installed.length > 0 ? `已安装 ${status.installed.length} 个版本` : '空',
         status.installed.length > 0 ? 'ok' : 'warn',

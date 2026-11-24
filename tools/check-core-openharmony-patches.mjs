@@ -279,6 +279,8 @@ const PROFILE_DIR = 'profiles/ondevice';
 const DEDUP_REL = 'dsh-client-ui-sidebar-documentpreview/lib/client.js';
 // ⑱ web_search 抖动重试：**树根相对**路径（INJECTED_PATCHES 的 site.rel 走树根口径）
 const WEB_SEARCH_RETRY_LIB = 'node_modules/@deepseek-ai/dsh-web-search-deepseek/lib/index.js';
+// ⑲ 远程连接面板：同上，树根相对路径（客户端 bundle 在树内 node_modules 下）
+const REMOTE_CONNECTION_LIB = 'node_modules/@deepseek-ai/dsh-client-remote-connection/lib/client.js';
 // 注入标记 + 它引入的三个标识符（注入后各出现；撤除后必须 0 次）。`dshmLoadKey` 是 `dshmLoadKeyRef` 的前缀，故不单列。
 const DEDUP_MARKERS = ['DSHM_DOC_LOAD_DEDUP', 'dshmLoadKeyRef', 'dshmAbortRef', 'dshmSignal'];
 // 上游原文形态（撤除后必须恢复）：effect 的 started 早退行 + 三个加载调用点用 owner 的 `signal`。
@@ -1201,6 +1203,30 @@ const INJECTED_PATCHES = [
       ],
     }],
   },
+
+  /* ── ⑲ 远程连接面板（v1.1.13，删除式） ── */
+  {
+    key: '远程连接面板',
+    fn: 'patchRemoteConnectionDesktopGate()',
+    note: 'alpha.2 的 `dsh-client-remote-connection` 客户端 `apply()` 首行是 '
+      + '`await ctx.remote.$mount(TYPERT_REMOTE); if (`dshDesktop`in globalThis)return;` —— '
+      + '官方 Electron 桌面壳自带远程连接入口，所以 Web 版设置节在桌面载体下不注册。'
+      + 'Whale 的 ArkWeb 壳注入 `globalThis.dshDesktop={protocolVersion:1}`（`WebApp.ets` 的 '
+      + 'DESKTOP_CARRIER_JS：账号菜单/更新源/浏览器页签三个门要求它存在），却没有壳侧远程连接 UI '
+      + '⇒ 该设置在真机上永远不出现（2026-11-24 用户验收：「设置里找不到远程访问」）。'
+      + '补丁只删这一处提前退出；反向判据 = 上游原文不得残留（否则说明补丁被回退/重复注入）。',
+    sites: [{
+      rel: REMOTE_CONNECTION_LIB,
+      markers: [['DSHM_REMOTE_CONNECTION_DESKTOP_GATE', 1]],
+      forward: [
+        ['settings.section', '设置分节注册仍在（「远程连接」页的座位）'],
+        [':`remote-connection`', '设置分节 id（设置左侧导航的键）'],
+      ],
+      reverse: [
+        ['if(`dshDesktop`in globalThis)return;', 'pack-core 的 before 锚点原文（补丁后必须消失）'],
+      ],
+    }],
+  },
 ];
 
 /**
@@ -1630,7 +1656,7 @@ function runGuard() {
     process.exit(3);
   }
   const { notes, fails } = audit(CORE);
-  console.log('════════ 核心树端侧补丁门禁（22 处注入 + 1 处撤除守卫：资源地址装甲 · PDF Map · 终端 openharmony · 语音原生采集 · 录音约束 · HMS provider · profile/自带插件 · session link · 凭据 660 · preset workflow · app-boot 只读 stack · 市场宿主桥 · profile 包通道 · fs-local link · attachment link · attachment 失败 cause · Origin 列表 · sharp 调度器 · system 平台包 · 端侧 preset · 平台别名 · 树内清单 · 撤除守卫[DSHM_DOC_LOAD_DEDUP 不得复活]） ════════');
+  console.log('════════ 核心树端侧补丁门禁（23 处注入 + 1 处撤除守卫：资源地址装甲 · PDF Map · 终端 openharmony · 语音原生采集 · 录音约束 · HMS provider · profile/自带插件 · session link · 凭据 660 · preset workflow · app-boot 只读 stack · 市场宿主桥 · profile 包通道 · fs-local link · attachment link · attachment 失败 cause · Origin 列表 · sharp 调度器 · system 平台包 · 端侧 preset · 平台别名 · 树内清单 · 远程连接面板 · 撤除守卫[DSHM_DOC_LOAD_DEDUP 不得复活]） ════════');
   console.log(`核心树：${CORE}`);
   for (const n of notes) console.log(n);
   if (fails.length > 0) {
@@ -1639,7 +1665,7 @@ function runGuard() {
     console.log(`\nRESULT: ${notes.length} passed, ${fails.length} failed`);
     process.exit(1);
   }
-  console.log(`\nRESULT: ${notes.length} passed, 0 failed —— 22 处端侧注入补丁都在树里，且上游原文/未注入形态均已消失`
+  console.log(`\nRESULT: ${notes.length} passed, 0 failed —— 23 处端侧注入补丁都在树里，且上游原文/未注入形态均已消失`
     + '；另有 1 处**撤除守卫**（`DSHM_DOC_LOAD_DEDUP` 已于 coreVersion +dshm.6 撤除 ⇒ 标记必须 0 处、上游原文形态必须已恢复）。'
     + '（树内清单 dshm-core.json 是生成物，只按形状判：存在 + 字段/类型 + 配方一致 + 内部一致）。');
 }

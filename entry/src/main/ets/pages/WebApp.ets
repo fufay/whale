@@ -2028,6 +2028,8 @@ struct WebApp {
   private hmsE2eDetail: string = '';
 
   aboutToAppear(): void {
+    // 换核后前端可能仍命中旧缓存（见 ensureWebCacheFreshForCore 注释）——先清再载入
+    this.ensureWebCacheFreshForCore();
     // 覆盖「页面创建前 Host 已就绪」的时序：@StorageProp 初始化时就会拿到已发布的值
     if (this.launchUrl.length > 0) {
       this.enterLoading();
@@ -2717,6 +2719,77 @@ struct WebApp {
   }
 
   /**
+   * 换核/换插件后前端仍是旧版？——启动时按"核心版本指纹"清一次 ArkWeb 缓存。
+   *
+   * 【为什么需要（2026-11-24 alpha.2 升级真机踩坑）】ArkWeb 对前端静态资源的响应带
+   * `cache-control: public, max-age=31536000, immutable`（服务端按内容哈希给 `?rev=`，
+   * 对**同 URL** 语义上永不变化）；但换了核心树/插件后，入口 HTML 与模块清单的 rev 变化
+   * 并不总是触发旧副本失效 —— 实测换核后界面仍是旧前端：新版 UI（会话面板 / 已读未读 /
+   * 连接器账号 / 远程连接）全部"看不见"，而宿主侧一切正常。
+   * 判据用 `filesDir/web-cache-core-version` 记录的上次版本：只在换核后清一次，
+   * 不给日常启动加成本；插件更新后仍可点菜单「强制刷新（清缓存）」。
+   */
+  private ensureWebCacheFreshForCore(): void {
+    try {
+      const ctx = getContext(this) as common.UIAbilityContext;
+      const marker: string = `${ctx.filesDir}/web-cache-core-version`;
+      const current: string = this.dshCoreVersion();
+      if (current.startsWith('（')) {
+        return; // 核心树还没解包，等下次启动
+      }
+      let last: string = '';
+      try {
+        if (fileIo.accessSync(marker)) {
+          last = fileIo.readTextSync(marker).trim();
+        }
+      } catch (e) {
+        last = '';
+      }
+      if (last === current) {
+        return;
+      }
+      try {
+        webview.WebviewController.removeAllCache(true);
+        hilog.info(DOMAIN, TAG, '换核后已清 WebView 缓存：%{public}s → %{public}s',
+          last.length === 0 ? '(空)' : last, current);
+      } catch (e) {
+        hilog.warn(DOMAIN, TAG, '清 WebView 缓存失败：%{public}s', (e as Error).message);
+      }
+      try {
+        const f: fileIo.File = fileIo.openSync(marker,
+          fileIo.OpenMode.CREATE | fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.TRUNC);
+        fileIo.writeSync(f.fd, `${current}\n`);
+        fileIo.closeSync(f);
+      } catch (e) {
+        hilog.warn(DOMAIN, TAG, '写缓存版本标记失败：%{public}s', (e as Error).message);
+      }
+    } catch (e) {
+      hilog.warn(DOMAIN, TAG, '换核缓存判定异常：%{public}s', (e as Error).message);
+    }
+  }
+
+  /** 强制刷新：清掉 ArkWeb 全部缓存后重载（换核/换插件后仍看到旧界面时用）。 */
+  private hardRefresh(): void {
+    try {
+      webview.WebviewController.removeAllCache(true);
+      hilog.info(DOMAIN, TAG, '已清 ArkWeb 缓存，重新加载前端');
+    } catch (e) {
+      hilog.warn(DOMAIN, TAG, '清 ArkWeb 缓存失败：%{public}s', (e as Error).message);
+    }
+    this.loadFailed = false;
+    this.phase = WebPhase.LOADING;
+    this.errorText = '';
+    if (this.launchUrl.length === 0) {
+      return;
+    }
+    try {
+      this.controller.loadUrl(this.launchUrl);
+    } catch (e) {
+      hilog.warn(DOMAIN, TAG, '强制刷新重载失败：%{public}s', (e as Error).message);
+    }
+  }
+
+  /**
    * 编辑菜单动作统一入口：把 execCommand 派发给 web 里当前聚焦的可编辑目标。
    * 【机制】官方桌面（Electron）的编辑菜单操作 webContents；端侧等价物是
    * runJavaScript 派发 document.execCommand——撤销/重做/剪切/复制/删除/全选
@@ -2768,6 +2841,9 @@ struct WebApp {
       } },
       { value: '刷新', action: (): void => {
         this.refreshView();
+      } },
+      { value: '强制刷新（清缓存）', action: (): void => {
+        this.hardRefresh();
       } },
       { value: '关于版本', action: (): void => {
         this.aboutVersions();
